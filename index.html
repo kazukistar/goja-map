@@ -2,10 +2,17 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>集合場所アプリ</title>
+  <title>ごじゃ地図</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
-  <!-- Leaflet（白地図・ズーム対応） -->
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#ffffff">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="ごじゃ地図">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon-180.png">
+
+  <!-- Leaflet -->
   <link
     rel="stylesheet"
     href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
@@ -18,30 +25,39 @@
 </head>
 <body>
 
-<h2>📍 地図をタップして居住地登録</h2>
+<h2>📍 ごじゃ地図</h2>
+<p style="margin: 8px 10px; font-size: 14px;">
+  地図をタップして「居住地ピン」を登録 → 重心を計算して集合場所を決める。
+</p>
 
 <div id="map"></div>
 
 <button onclick="calculateCentroid()">重心を計算</button>
 
-<!-- ▼ 重心の説明（修正版） -->
 <div style="margin:10px; font-size:14px; text-align:left; background:#f5f5f5; padding:10px; border-radius:8px;">
   <b>📘 重心の考え方</b><br><br>
 
   🔴 <b>重み付き重心（各自が別々に来る想定）</b><br>
-  人数をそのまま考慮します。<br>
-  人数が多い地点ほど、集合場所に強く影響します。<br><br>
+  人数をそのまま考慮します。人数が多い地点ほど集合場所に強く影響します。<br><br>
 
   🟢 <b>重みなし重心（乗り合い前提）</b><br>
-  同じ地点の人は「1台の車で乗り合って来る」と考えます。<br>
-  人数は無視して、地点ごとに同じ重みで計算します。<br><br>
+  同じ地点の人は「1台の車で乗り合って来る」と考えます。人数は無視して地点ごとに同じ重みで計算します。<br><br>
 
-  ※ 人数の偏りが大きいほど、🔴と🟢はズレます。<br>
-  ※ 「おすすめスポット」は重心周辺を自動検索して出します（場所によっては少ないことがあります）。
+  ※ 人数の偏りが大きいほど、🔴と🟢はズレます。
 </div>
 
 <div id="result"></div>
 
 <script src="app.js"></script>
+
+<!-- Service Worker登録（PWA） -->
+<script>
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("./sw.js").catch(() => {});
+    });
+  }
+</script>
+
 </body>
 </html>
