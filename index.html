@@ -5,7 +5,7 @@
   <title>ごじゃ地図</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
-  <!-- PWA（すでにできてる前提） -->
+  <!-- PWA（既存のまま） -->
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="theme-color" content="#ffffff">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -18,7 +18,7 @@
 
   <link rel="stylesheet" href="style.css">
 
-  <!-- ▼ スプラッシュ用CSS（style.cssを壊さないため、ここに内蔵） -->
+  <!-- スプラッシュ用CSS（style.cssに触れずにここへ） -->
   <style>
     #splash {
       position: fixed;
@@ -65,7 +65,7 @@
 </head>
 
 <body>
-  <!-- ▼ スプラッシュ（起動時にここが一瞬表示される） -->
+  <!-- スプラッシュ（起動時に一瞬表示） -->
   <div id="splash" aria-label="ごじゃ地図 起動画面">
     <div class="box">
       <img src="icons/icon-512.png" alt="ごじゃ地図 アイコン">
@@ -108,29 +108,34 @@
     }
   </script>
 
-  <!-- ▼ スプラッシュ制御：最低0.7秒は見せて、その後スッと消す -->
+  <!-- ✅ スプラッシュ制御：load待ちしない。必ず消える版 -->
   <script>
     (function () {
       const splash = document.getElementById("splash");
       if (!splash) return;
 
-      const MIN_SHOW_MS = 700;      // 早すぎるとチカチカするので最低表示
-      const MAX_SHOW_MS = 3000;     // 何かが遅くても3秒で強制的に消す
-      const started = performance.now();
       let hidden = false;
-
       function hideSplash() {
         if (hidden) return;
         hidden = true;
         splash.classList.add("hide");
-        setTimeout(() => { splash.remove(); }, 400);
+        setTimeout(() => splash.remove(), 400);
       }
 
-      // ページの読み込みが進んだら、最低表示時間を満たしてから消す
+      // 重要：loadが来なくても必ず消す（最強）
+      setTimeout(hideSplash, 900);
+
+      // 早く読み込み終わった場合：最低0.7秒は見せてから消す
+      const started = performance.now();
       window.addEventListener("load", () => {
         const elapsed = performance.now() - started;
-        const wait = Math.max(0, MIN_SHOW_MS - elapsed);
+        const wait = Math.max(0, 700 - elapsed);
         setTimeout(hideSplash, wait);
       });
 
-      //
+      // 保険：何があっても3秒で消す
+      setTimeout(hideSplash, 3000);
+    })();
+  </script>
+</body>
+</html>
