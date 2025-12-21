@@ -1,0 +1,30 @@
+/* 画面全体の設定 */
+body {
+  margin: 0;
+  font-family: sans-serif;
+  text-align: center;
+}
+
+/* タイトル */
+h2 {
+  margin: 10px 0;
+}
+
+/* 地図のサイズ（超重要） */
+#map {
+  height: 70vh;   /* 画面の70%を地図にする */
+  width: 100%;
+}
+
+/* ボタン */
+button {
+  font-size: 18px;
+  padding: 10px 20px;
+  margin: 10px;
+}
+
+/* 結果表示 */
+#result {
+  margin-top: 10px;
+  font-size: 16px;
+}
