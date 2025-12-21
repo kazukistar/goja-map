@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>集合場所アプリ</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- 地図ライブラリ -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  />
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js">
+  </script>
+
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<h2>📍 地図をタップして居住地登録</h2>
+
+<div id="map"></div>
+
+<button onclick="calculateCentroid()">重心を計算</button>
+
+<div id="result"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
