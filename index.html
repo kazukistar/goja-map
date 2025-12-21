@@ -5,7 +5,7 @@
   <title>ごじゃ地図</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
-  <!-- PWA -->
+  <!-- PWA（すでにできてる前提） -->
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="theme-color" content="#ffffff">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -13,51 +13,124 @@
   <link rel="apple-touch-icon" href="icons/apple-touch-icon-180.png">
 
   <!-- Leaflet -->
-  <link
-    rel="stylesheet"
-    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-  />
-  <script
-    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js">
-  </script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
   <link rel="stylesheet" href="style.css">
+
+  <!-- ▼ スプラッシュ用CSS（style.cssを壊さないため、ここに内蔵） -->
+  <style>
+    #splash {
+      position: fixed;
+      inset: 0;
+      background: #ffffff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+    }
+    #splash .box {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+      padding: 18px;
+    }
+    #splash img {
+      width: 120px;
+      height: 120px;
+      border-radius: 24px;
+      object-fit: cover;
+      box-shadow: 0 10px 24px rgba(0,0,0,0.12);
+    }
+    #splash .title {
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: 0.02em;
+    }
+    #splash .sub {
+      font-size: 13px;
+      opacity: 0.65;
+    }
+    #splash.hide {
+      animation: splashFade 300ms ease forwards;
+    }
+    @keyframes splashFade {
+      to { opacity: 0; visibility: hidden; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      #splash.hide { animation: none; opacity: 0; visibility: hidden; }
+    }
+  </style>
 </head>
+
 <body>
+  <!-- ▼ スプラッシュ（起動時にここが一瞬表示される） -->
+  <div id="splash" aria-label="ごじゃ地図 起動画面">
+    <div class="box">
+      <img src="icons/icon-512.png" alt="ごじゃ地図 アイコン">
+      <div class="title">ごじゃ地図</div>
+      <div class="sub">起動中…</div>
+    </div>
+  </div>
 
-<h2>📍 ごじゃ地図</h2>
-<p style="margin: 8px 10px; font-size: 14px;">
-  地図をタップして「居住地ピン」を登録 → 重心を計算して集合場所を決める。
-</p>
+  <h2>📍 ごじゃ地図</h2>
+  <p style="margin: 8px 10px; font-size: 14px;">
+    地図をタップして「居住地ピン」を登録 → 重心を計算して集合場所を決める。
+  </p>
 
-<div id="map"></div>
+  <div id="map"></div>
 
-<button onclick="calculateCentroid()">重心を計算</button>
+  <button onclick="calculateCentroid()">重心を計算</button>
 
-<div style="margin:10px; font-size:14px; text-align:left; background:#f5f5f5; padding:10px; border-radius:8px;">
-  <b>📘 重心の考え方</b><br><br>
+  <div style="margin:10px; font-size:14px; text-align:left; background:#f5f5f5; padding:10px; border-radius:8px;">
+    <b>📘 重心の考え方</b><br><br>
 
-  🔴 <b>重み付き重心（各自が別々に来る想定）</b><br>
-  人数をそのまま考慮します。人数が多い地点ほど集合場所に強く影響します。<br><br>
+    🔴 <b>重み付き重心（各自が別々に来る想定）</b><br>
+    人数をそのまま考慮します。人数が多い地点ほど集合場所に強く影響します。<br><br>
 
-  🟢 <b>重みなし重心（乗り合い前提）</b><br>
-  同じ地点の人は「1台の車で乗り合って来る」と考えます。人数は無視して地点ごとに同じ重みで計算します。<br><br>
+    🟢 <b>重みなし重心（乗り合い前提）</b><br>
+    同じ地点の人は「1台の車で乗り合って来る」と考えます。人数は無視して地点ごとに同じ重みで計算します。<br><br>
 
-  ※ 人数の偏りが大きいほど、🔴と🟢はズレます。
-</div>
+    ※ 人数の偏りが大きいほど、🔴と🟢はズレます。
+  </div>
 
-<div id="result"></div>
+  <div id="result"></div>
 
-<script src="app.js"></script>
+  <script src="app.js"></script>
 
-<!-- Service Worker登録（PWA） -->
-<script>
-  if ("serviceWorker" in navigator) {
-    window.addEventListener("load", () => {
-      navigator.serviceWorker.register("./sw.js").catch(() => {});
-    });
-  }
-</script>
+  <!-- Service Worker登録（PWA） -->
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("./sw.js").catch(() => {});
+      });
+    }
+  </script>
 
-</body>
-</html>
+  <!-- ▼ スプラッシュ制御：最低0.7秒は見せて、その後スッと消す -->
+  <script>
+    (function () {
+      const splash = document.getElementById("splash");
+      if (!splash) return;
+
+      const MIN_SHOW_MS = 700;      // 早すぎるとチカチカするので最低表示
+      const MAX_SHOW_MS = 3000;     // 何かが遅くても3秒で強制的に消す
+      const started = performance.now();
+      let hidden = false;
+
+      function hideSplash() {
+        if (hidden) return;
+        hidden = true;
+        splash.classList.add("hide");
+        setTimeout(() => { splash.remove(); }, 400);
+      }
+
+      // ページの読み込みが進んだら、最低表示時間を満たしてから消す
+      window.addEventListener("load", () => {
+        const elapsed = performance.now() - started;
+        const wait = Math.max(0, MIN_SHOW_MS - elapsed);
+        setTimeout(hideSplash, wait);
+      });
+
+      //
