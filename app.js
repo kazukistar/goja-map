@@ -9,7 +9,7 @@ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
 }).addTo(map);
 
 // ================================
-// 登録された地点を保存
+// 登録された地点
 // ================================
 let points = [];
 let centroidMarkers = [];
@@ -27,7 +27,6 @@ map.on("click", function (e) {
   }
 
   const count = parseInt(input);
-
   const marker = L.marker(e.latlng).addTo(map);
 
   points.push({
@@ -56,7 +55,6 @@ function deleteMarker(index) {
 
   map.removeLayer(p.marker);
   points.splice(index, 1);
-
   clearCentroids();
 }
 
@@ -79,7 +77,6 @@ function calculateCentroidUnweighted(points) {
   points.forEach(p => {
     const lat = p.lat * Math.PI / 180;
     const lon = p.lon * Math.PI / 180;
-
     x += Math.cos(lat) * Math.cos(lon);
     y += Math.cos(lat) * Math.sin(lon);
     z += Math.sin(lat);
@@ -95,6 +92,46 @@ function calculateCentroidUnweighted(points) {
     lat: lat * 180 / Math.PI,
     lon: lon * 180 / Math.PI
   };
+}
+
+// ================================
+// 周辺スポット検索リンク生成
+// ================================
+function generateNearbyLinks(lat, lon) {
+  const zoom = 11;
+
+  const categories = [
+    { name: "♨ 温泉", query: "温泉" },
+    { name: "🏯 歴史・文化", query: "史跡 OR 城 OR 寺 OR 神社" },
+    { name: "🎡 レジャー施設", query: "テーマパーク OR レジャー施設" },
+    { name: "🎿 スキー場", query: "スキー場" },
+    { name: "🍽 ご当地グルメ", query: "名物料理 OR 郷土料理" },
+    { name: "🍺 飲食店街", query: "飲食店街 OR 居酒屋" },
+    { name: "🏨 宿泊施設", query: "ホテル OR 旅館" },
+    { name: "🅿 駐車場", query: "駐車場" },
+
+    // ★ 追加分
+    { name: "❤️ 風俗街＋ホテル", query: "風俗街 OR ソープ OR デリヘル OR ラブホテル" }
+  ];
+
+  let html = "<b>📍 集合地点周辺のスポット</b><ul>";
+
+  categories.forEach(cat => {
+    const url =
+      `https://www.google.com/maps/search/${encodeURIComponent(cat.query)}` +
+      `/@${lat},${lon},${zoom}z`;
+
+    html += `
+      <li>
+        <a href="${url}" target="_blank">
+          ${cat.name} を探す
+        </a>
+      </li>
+    `;
+  });
+
+  html += "</ul>";
+  return html;
 }
 
 // ================================
@@ -179,6 +216,8 @@ function calculateCentroid() {
     経度：${unweighted.lon.toFixed(5)}<br>
     <a href="https://www.google.com/maps?q=${unweighted.lat},${unweighted.lon}" target="_blank">
       Googleマップで開く
-    </a>
+    </a><br><br>
+
+    ${generateNearbyLinks(weighted.lat, weighted.lon)}
   `;
 }
