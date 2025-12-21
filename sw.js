@@ -1,7 +1,6 @@
-// ごじゃ地図 PWA Service Worker
-// 最低限：オフラインでも起動できるようにする（地図タイルはオンライン必要）
+// ごじゃ地図 PWA Service Worker（v2）
 
-const CACHE_NAME = "goja-chizu-cache-v1";
+const CACHE_NAME = "goja-chizu-cache-v2"; // ★ v1→v2 に変更（これが重要）
 const ASSETS = [
   "./",
   "./index.html",
@@ -13,15 +12,11 @@ const ASSETS = [
   "./icons/apple-touch-icon-180.png"
 ];
 
-// インストール時にキャッシュ
 self.addEventListener("install", (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
-  );
+  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS)));
   self.skipWaiting();
 });
 
-// 古いキャッシュ掃除
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
@@ -31,12 +26,25 @@ self.addEventListener("activate", (event) => {
   self.clients.claim();
 });
 
-// 取得：基本はキャッシュ優先、なければネット
 self.addEventListener("fetch", (event) => {
+  const req = event.request;
+
+  // ★ ページ遷移（index.html）はネット優先にして、更新が反映されやすくする
+  if (req.mode === "navigate") {
+    event.respondWith(
+      fetch(req)
+        .then((res) => {
+          const copy = res.clone();
+          caches.open(CACHE_NAME).then((c) => c.put("./index.html", copy));
+          return res;
+        })
+        .catch(() => caches.match("./index.html"))
+    );
+    return;
+  }
+
+  // その他の静的ファイルはキャッシュ優先
   event.respondWith(
-    caches.match(event.request).then((cached) => {
-      if (cached) return cached;
-      return fetch(event.request).catch(() => cached);
-    })
+    caches.match(req).then((cached) => cached || fetch(req))
   );
 });
