@@ -1,6 +1,6 @@
 // ごじゃ地図 PWA Service Worker（v2）
 
-const CACHE_NAME = "goja-chizu-cache-v2"; // ★ v1→v2 に変更（これが重要）
+const CACHE_NAME = "goja-chizu-cache-v3"; // ★ v1→v2 に変更（これが重要）
 const ASSETS = [
   "./",
   "./index.html",
