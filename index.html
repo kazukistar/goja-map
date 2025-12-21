@@ -5,7 +5,7 @@
   <title>集合場所アプリ</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
-  <!-- 地図ライブラリ -->
+  <!-- Leaflet（白地図・ズーム対応） -->
   <link
     rel="stylesheet"
     href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
@@ -23,6 +23,20 @@
 <div id="map"></div>
 
 <button onclick="calculateCentroid()">重心を計算</button>
+
+<!-- ▼ 重心の説明（サルでも分かる） -->
+<div style="margin:10px; font-size:14px; text-align:left; background:#f5f5f5; padding:10px; border-radius:8px;">
+  <b>📘 重心の考え方</b><br><br>
+
+  🔴 <b>重み付き重心（おすすめ）</b><br>
+  同じ地点にいる人は「1台の車に乗り合って来る」と考えます。<br>
+  人数が多い地点ほど、集合場所に強く影響します。<br><br>
+
+  🟢 <b>重みなし重心（参考）</b><br>
+  人数は無視して「地点の数」だけで真ん中を計算します。<br><br>
+
+  ※ 人数が偏っている場合、🔴と🟢はズレます。
+</div>
 
 <div id="result"></div>
 
