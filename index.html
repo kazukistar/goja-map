@@ -20,32 +20,21 @@
 </head>
 
 <body>
-  <!-- Splash -->
+  <!-- Splash（矢印フロー無し） -->
   <div id="splash" aria-label="ごじゃ地図 起動画面">
     <div class="splashBox">
       <img class="splashIcon" src="icons/icon-512.png" alt="ごじゃ地図" />
       <div class="splashTitle">ごじゃ地図</div>
-
-      <!-- ▼ ここ：矢印を下向きで目立たせる -->
-      <div class="splashFlow">
-        <div class="flowLine">地図タップで居住地ピン</div>
-        <div class="flowArrow">↓</div>
-        <div class="flowLine">重心で集合場所</div>
-        <div class="flowArrow">↓</div>
-        <div class="flowLine">おすすめは下に表示</div>
-      </div>
-
       <div class="splashSub">起動中…</div>
-      <div class="splashSub">ver.1.1</div>
+      <div class="splashSub">ver. 1.2</div>
     </div>
   </div>
 
   <!-- Header -->
   <header class="topbar">
-    <!-- ▼ タイトル：大きく＆中央揃え -->
     <div class="appTitle">📍 ごじゃ地図</div>
 
-    <!-- ▼ 説明：下向き矢印で3段（中央） -->
+    <!-- 説明：矢印下向き3段（中央） -->
     <div class="appFlow">
       <div class="flowLine">地図タップで居住地ピン</div>
       <div class="flowArrow">↓</div>
@@ -54,7 +43,7 @@
       <div class="flowLine">おすすめは下に表示</div>
     </div>
 
-    <!-- ▼ 操作行：中央揃え -->
+    <!-- 操作行：中央揃え -->
     <div class="controlRow">
       <button id="btnCalc" class="btn primary">重心を計算</button>
       <button id="btnClear" class="btn">全ピン削除</button>
@@ -129,23 +118,19 @@
   <script>
     async function hardReloadPWA() {
       try {
-        // 1) Service Worker 登録を全解除
         if ("serviceWorker" in navigator) {
           const regs = await navigator.serviceWorker.getRegistrations();
           await Promise.all(regs.map(r => r.unregister()));
         }
 
-        // 2) Cache Storage を全削除
         if (window.caches && caches.keys) {
           const keys = await caches.keys();
           await Promise.all(keys.map(k => caches.delete(k)));
         }
 
-        // 3) できる範囲でストレージ掃除
         try { localStorage.clear(); } catch(e) {}
         try { sessionStorage.clear(); } catch(e) {}
 
-        // indexedDB（対応ブラウザのみ）
         if (window.indexedDB && indexedDB.databases) {
           try {
             const dbs = await indexedDB.databases();
@@ -159,7 +144,6 @@
           } catch (e) {}
         }
       } finally {
-        // 4) キャッシュバスター付きで再読み込み
         const url = new URL(location.href);
         url.searchParams.set("v", Date.now().toString());
         location.replace(url.toString());
@@ -183,7 +167,7 @@
       const splash = document.getElementById("splash");
       if (!splash) return;
 
-      const MIN_SHOW_MS = 3000;  // ★最低表示時間：3秒（ここを変えれば時間調整）
+      const MIN_SHOW_MS = 3000;  // ★最低表示時間：3秒
       const MAX_SHOW_MS = 8000;  // 保険
       const FADE_MS = 420;       // CSSと合わせる
 
@@ -196,10 +180,8 @@
         setTimeout(() => splash.remove(), FADE_MS + 60);
       }
 
-      // 3秒経ったら消す（load待ちしない）
       setTimeout(hideSplash, MIN_SHOW_MS);
 
-      // 読み込みが早くても最低3秒は見せる
       const started = performance.now();
       window.addEventListener("load", () => {
         const elapsed = performance.now() - started;
@@ -207,7 +189,6 @@
         setTimeout(hideSplash, wait);
       });
 
-      // 何があってもMAXで消す
       setTimeout(hideSplash, MAX_SHOW_MS);
     })();
   </script>
