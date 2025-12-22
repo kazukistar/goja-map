@@ -5,26 +5,23 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>ごじゃ地図</title>
 
-  <!-- Leaflet CSS（必須） -->
+  <!-- Leaflet CSS -->
   <link
     rel="stylesheet"
     href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
   />
 
-  <!-- アプリCSS -->
-  <link rel="stylesheet" href="style.css" />
-
-  <!-- PWA -->
-  <link rel="manifest" href="manifest.webmanifest">
+  <!-- アプリCSS（必ず ./ を付ける） -->
+  <link rel="stylesheet" href="./style.css" />
 </head>
 
 <body>
-  <header>ごじゃ地図</header>
+  <header>📍 ごじゃ地図</header>
 
-  <!-- 地図がホーム -->
+  <!-- 地図（ホーム画面） -->
   <div id="map"></div>
 
-  <!-- 下部ナビ（最低限） -->
+  <!-- 下部ナビ（今は見た目だけ） -->
   <nav class="bottom">
     <span>🗺 地図</span>
   </nav>
@@ -32,7 +29,7 @@
   <!-- Leaflet JS（app.jsより先！） -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-  <!-- アプリ本体 -->
-  <script src="app.js"></script>
+  <!-- アプリ本体（必ず ./ を付ける） -->
+  <script src="./app.js"></script>
 </body>
 </html>
