@@ -17,6 +17,28 @@ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
 }).addTo(map);
 
 // ================================
+// ★ 地図が黒い/描画されない対策（iPhone/PWA）
+// - スプラッシュが消えるタイミング
+// - 画面回転/リサイズ
+// - PWA復帰(pageshow/visibilitychange)
+// - 初回遅延
+// ================================
+function safeInvalidate() {
+  try { map.invalidateSize(true); } catch (e) {}
+}
+setTimeout(safeInvalidate, 200);
+setTimeout(safeInvalidate, 1200);
+setTimeout(safeInvalidate, 3200); // スプラッシュ最低3秒に合わせて
+setTimeout(safeInvalidate, 4500);
+
+window.addEventListener("resize", () => setTimeout(safeInvalidate, 80));
+window.addEventListener("orientationchange", () => setTimeout(safeInvalidate, 200));
+window.addEventListener("pageshow", () => setTimeout(safeInvalidate, 200));
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) setTimeout(safeInvalidate, 200);
+});
+
+// ================================
 // DOM 参照（UI変更しないためID固定）
 // ================================
 const elPinList = document.getElementById("pinList");
@@ -95,7 +117,6 @@ function ensureCalcOverlay() {
   box.style.boxShadow = "0 14px 40px rgba(0,0,0,0.35)";
   box.style.maxWidth = "86vw";
 
-  // アイコン（存在しなくても壊れないように）
   const img = document.createElement("img");
   img.alt = "ごじゃ地図";
   img.src = "icons/icon-192.png";
@@ -104,10 +125,7 @@ function ensureCalcOverlay() {
   img.style.borderRadius = "22px";
   img.style.objectFit = "cover";
   img.style.boxShadow = "0 10px 26px rgba(0,0,0,0.35)";
-  img.onerror = () => {
-    // 画像が無い/パス違いでも落ちない（非表示にするだけ）
-    img.style.display = "none";
-  };
+  img.onerror = () => { img.style.display = "none"; };
 
   const title = document.createElement("div");
   title.textContent = "計算中…";
@@ -124,7 +142,6 @@ function ensureCalcOverlay() {
   sub.style.color = "#fff";
   sub.style.textAlign = "center";
 
-  // 簡易スピナー（CSS追加せずにJSで回す）
   const spinner = document.createElement("div");
   spinner.style.width = "26px";
   spinner.style.height = "26px";
@@ -150,7 +167,6 @@ function ensureCalcOverlay() {
     spinReq = null;
   }
 
-  // overlayに関数をぶら下げ（外から制御）
   overlay.__startSpin = startSpin;
   overlay.__stopSpin = stopSpin;
 
@@ -168,20 +184,13 @@ function ensureCalcOverlay() {
 
 function showCalcOverlay(minMs = MIN_CALC_DISPLAY_MS) {
   const overlay = ensureCalcOverlay();
-
-  // 既に表示中なら、最低表示時間だけ更新
   calcOverlay.shownAt = performance.now();
   calcOverlay.isVisible = true;
 
   overlay.style.display = "flex";
-  // 次フレームでopacity上げる（フェードイン）
-  requestAnimationFrame(() => {
-    overlay.style.opacity = "1";
-  });
-
+  requestAnimationFrame(() => { overlay.style.opacity = "1"; });
   if (overlay.__startSpin) overlay.__startSpin();
 
-  // 既存のhide予約を消して、minMs後に必ず消す
   if (calcOverlay.hideTimer) clearTimeout(calcOverlay.hideTimer);
   calcOverlay.hideTimer = setTimeout(() => {
     hideCalcOverlay();
@@ -195,11 +204,12 @@ function hideCalcOverlay() {
   calcOverlay.isVisible = false;
   overlay.style.opacity = "0";
 
-  // フェードアウト後にdisplay:none
   setTimeout(() => {
     if (!calcOverlay.isVisible && overlay) {
       overlay.style.display = "none";
       if (overlay.__stopSpin) overlay.__stopSpin();
+      // オーバーレイが消えた後に地図再描画（ここが効く）
+      setTimeout(safeInvalidate, 50);
     }
   }, 280);
 }
@@ -212,7 +222,6 @@ const OVERPASS_ENDPOINTS = [
   "https://overpass.kumi.systems/api/interpreter",
 ];
 
-// カテゴリごとの最大表示数
 const POI_LIMIT_EACH = 6;
 
 // ================================
@@ -234,9 +243,7 @@ function haversineKm(lat1, lon1, lat2, lon2) {
 // 球面重心（重みなし）
 // ================================
 function centroidUnweighted(pts) {
-  let x = 0,
-    y = 0,
-    z = 0;
+  let x = 0, y = 0, z = 0;
   const n = pts.length;
 
   pts.forEach((p) => {
@@ -247,9 +254,7 @@ function centroidUnweighted(pts) {
     z += Math.sin(lat);
   });
 
-  x /= n;
-  y /= n;
-  z /= n;
+  x /= n; y /= n; z /= n;
 
   const lon = Math.atan2(y, x);
   const hyp = Math.sqrt(x * x + y * y);
@@ -262,9 +267,7 @@ function centroidUnweighted(pts) {
 // 球面重心（重み付き：人数）
 // ================================
 function centroidWeighted(pts) {
-  let x = 0,
-    y = 0,
-    z = 0;
+  let x = 0, y = 0, z = 0;
   let total = 0;
 
   pts.forEach((p) => {
@@ -278,9 +281,7 @@ function centroidWeighted(pts) {
     total += w;
   });
 
-  x /= total;
-  y /= total;
-  z /= total;
+  x /= total; y /= total; z /= total;
 
   const lon = Math.atan2(y, x);
   const hyp = Math.sqrt(x * x + y * y);
@@ -339,7 +340,6 @@ function renderPinList() {
 
   elPinList.innerHTML = rows;
 
-  // 削除ボタン（イベント委譲）
   elPinList.querySelectorAll("[data-del]").forEach((btn) => {
     btn.addEventListener("click", () => {
       const id = parseInt(btn.getAttribute("data-del"), 10);
@@ -357,20 +357,18 @@ function deletePointById(id) {
 
   renderPinList();
 
-  // 重心結果は古くなるのでクリア
   clearCentroidMarkers();
   lastCentroids = null;
 
-  // おすすめプリフェッチもクリア
   resetRecommendationState(true);
 
-  // 結果欄
   if (elResult) {
     elResult.innerHTML = `<div class="muted">まずはピンを置いて「重心を計算」</div>`;
   }
 
-  // 表示ボタンは無効
   if (btnRecommend) btnRecommend.disabled = true;
+
+  setTimeout(safeInvalidate, 50);
 }
 
 function clearAllPoints() {
@@ -388,6 +386,8 @@ function clearAllPoints() {
   }
 
   if (btnRecommend) btnRecommend.disabled = true;
+
+  setTimeout(safeInvalidate, 50);
 }
 
 // ================================
@@ -425,7 +425,6 @@ map.on("click", (e) => {
 
   renderPinList();
 
-  // 既存の重心/おすすめは古くなる
   clearCentroidMarkers();
   lastCentroids = null;
   resetRecommendationState(true);
@@ -435,6 +434,8 @@ map.on("click", (e) => {
   }
 
   if (btnRecommend) btnRecommend.disabled = true;
+
+  setTimeout(safeInvalidate, 50);
 });
 
 // ================================
@@ -593,13 +594,7 @@ async function buildRecommendationsHtml(lat, lon, radiusKm) {
     const name = el.tags && el.tags.name ? el.tags.name : "(名前なし)";
     const dist = haversineKm(lat, lon, ll.lat, ll.lon);
 
-    items.push({
-      cat,
-      name,
-      lat: ll.lat,
-      lon: ll.lon,
-      distKm: dist,
-    });
+    items.push({ cat, name, lat: ll.lat, lon: ll.lon, distKm: dist });
   }
 
   const order = ["♨ 温泉", "🏯 歴史的観光地", "🎡 レジャー施設", "🎿 スキー場"];
@@ -627,9 +622,7 @@ async function buildRecommendationsHtml(lat, lon, radiusKm) {
       any = true;
       for (const it of arr) {
         const g = `https://www.google.com/maps?q=${it.lat},${it.lon}`;
-        html += `<li><a href="${g}" target="_blank" rel="noopener">${it.name}</a>（約${it.distKm.toFixed(
-          1
-        )} km）</li>`;
+        html += `<li><a href="${g}" target="_blank" rel="noopener">${it.name}</a>（約${it.distKm.toFixed(1)} km）</li>`;
       }
     }
     html += `</ul>`;
@@ -744,4 +737,86 @@ function renderRecommendationsNow() {
   }
 
   // fetching中
-  re
+  st.textContent = "準備中…（取得が終わり次第、自動で表示します）";
+  cont.innerHTML = "";
+  rec.pendingDisplay = true;
+}
+
+// ================================
+// 重心計算（ボタン）
+// ================================
+function calculateCentroids() {
+  if (points.length === 0) {
+    alert("地点が登録されていません");
+    return;
+  }
+
+  // 計算中表示
+  showCalcOverlay(MIN_CALC_DISPLAY_MS);
+
+  // 重心計算
+  const weighted = centroidWeighted(points);
+  const unweighted = centroidUnweighted(points);
+  lastCentroids = { weighted, unweighted };
+
+  // マーカー更新
+  clearCentroidMarkers();
+
+  const mW = L.marker([weighted.lat, weighted.lon], { icon: ICON_RED }).addTo(map);
+  const mU = L.marker([unweighted.lat, unweighted.lon], { icon: ICON_GREEN }).addTo(map);
+
+  centroidMarkers.push(mW, mU);
+
+  mW.bindPopup("🔴 重み付き重心（人数考慮）");
+  mU.bindPopup("🟢 重みなし重心（乗り合い前提）");
+
+  // 結果（おすすめはまだ出さない）
+  renderCentroidBaseResult(weighted, unweighted);
+
+  // 半径
+  const radiusKm = parseInt(radiusSlider ? radiusSlider.value : "30", 10);
+  resetRecommendationState(true);
+  rec.radiusKm = Number.isFinite(radiusKm) ? radiusKm : 30;
+
+  // result欄で計算中表示（最低4秒）
+  showCalcStatusForAtLeast4s();
+
+  // プリフェッチ開始
+  startPrefetchRecommendations(weighted, rec.radiusKm);
+
+  // 地図の描画ズレ修正
+  setTimeout(safeInvalidate, 50);
+  setTimeout(safeInvalidate, 400);
+}
+
+// ================================
+// イベント配線
+// ================================
+if (btnCalc) btnCalc.addEventListener("click", calculateCentroids);
+if (btnClear) btnClear.addEventListener("click", clearAllPoints);
+if (btnRecommend) btnRecommend.addEventListener("click", renderRecommendationsNow);
+
+// 半径スライダー
+function syncRadiusLabel() {
+  const v = parseInt(radiusSlider ? radiusSlider.value : "30", 10);
+  const km = Number.isFinite(v) ? v : 30;
+  if (radiusValue) radiusValue.textContent = String(km);
+  rec.radiusKm = km;
+}
+if (radiusSlider) {
+  syncRadiusLabel();
+  radiusSlider.addEventListener("input", () => {
+    syncRadiusLabel();
+
+    // 既に重心があるなら、半径変えた瞬間におすすめを取り直し（プリフェッチ）
+    if (lastCentroids && lastCentroids.weighted) {
+      resetRecommendationState(true);
+      startPrefetchRecommendations(lastCentroids.weighted, rec.radiusKm);
+      showCalcStatusForAtLeast4s();
+    }
+  });
+}
+
+// 初期表示
+renderPinList();
+setTimeout(safeInvalidate, 200);
