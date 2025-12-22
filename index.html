@@ -3,28 +3,115 @@
 <head>
   <meta charset="UTF-8">
   <title>ごじゃ地図</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
+  <!-- Leaflet CSS -->
   <link
     rel="stylesheet"
     href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
   />
 
   <style>
-    html, body, #map {
-      height: 100%;
+    body {
       margin: 0;
+      font-family: sans-serif;
+      text-align: center;
+    }
+
+    h2 {
+      margin: 10px 0;
+    }
+
+    #map {
+      height: 70vh;
+      width: 100%;
+    }
+
+    #info {
+      margin: 10px;
+      padding: 10px;
+      background: #f5f5f5;
+      border-radius: 8px;
+      text-align: left;
+      font-size: 14px;
     }
   </style>
 </head>
+
 <body>
+  <h2>📍 ごじゃ地図</h2>
+  <p style="font-size:14px;">
+    地図をクリックして居住地ピンを追加 → 重心を計算
+  </p>
+
   <div id="map"></div>
 
+  <button onclick="calculateCentroid()">重心を計算</button>
+
+  <div id="info">
+    <b>重心の考え方</b><br>
+    ・重みあり：人数が多い地点ほど影響が大きい<br>
+    ・重みなし：乗り合い前提で地点ごとに同じ重み
+  </div>
+
+  <!-- Leaflet JS -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
   <script>
+    // ====== ここからJS（最初に動いてた形） ======
+
     const map = L.map("map").setView([36, 138], 5);
+
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       maxZoom: 19
     }).addTo(map);
+
+    const points = [];
+
+    map.on("click", (e) => {
+      const marker = L.marker(e.latlng).addTo(map);
+      const people = prompt("この地点は何人？", "1");
+      if (!people) return;
+
+      points.push({
+        lat: e.latlng.lat,
+        lng: e.latlng.lng,
+        people: Number(people)
+      });
+
+      marker.bindPopup(`人数：${people}人`).openPopup();
+    });
+
+    function calculateCentroid() {
+      if (points.length === 0) {
+        alert("地点がありません");
+        return;
+      }
+
+      let sumLat = 0;
+      let sumLng = 0;
+      let sumPeople = 0;
+
+      points.forEach(p => {
+        sumLat += p.lat * p.people;
+        sumLng += p.lng * p.people;
+        sumPeople += p.people;
+      });
+
+      const lat = sumLat / sumPeople;
+      const lng = sumLng / sumPeople;
+
+      L.marker([lat, lng], {
+        icon: L.icon({
+          iconUrl: "https://maps.gstatic.com/mapfiles/ms2/micons/blue-dot.png",
+          iconSize: [32, 32]
+        })
+      }).addTo(map)
+        .bindPopup("📌 重心")
+        .openPopup();
+
+      map.setView([lat, lng], 6);
+    }
   </script>
 </body>
 </html>
