@@ -1,44 +1,43 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>ごじゃ地図</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
   <!-- Leaflet -->
-  <link
-    rel="stylesheet"
-    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-  />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
-  <link rel="stylesheet" href="./style.css">
-  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="stylesheet" href="./style.css" />
 </head>
 
 <body>
-  <h2>📍 ごじゃ地図</h2>
-  <p class="desc">
-    地図をタップして居住地ピンを登録 → 重心を計算
-  </p>
+  <header>
+    <div class="title">📍 ごじゃ地図</div>
+    <div class="subtitle">地図タップで地点追加 → 重心計算 → ポップアップから周辺検索</div>
+  </header>
 
-  <div id="map"></div>
+  <main>
+    <div id="map"></div>
 
-  <button onclick="calculateCentroids()">重心を計算</button>
+    <div class="controls">
+      <button id="btn-calc" type="button">重心を計算</button>
+      <button id="btn-clear" type="button">全ピン削除</button>
+    </div>
 
-  <div id="info">
-    <b>重心の考え方</b><br><br>
+    <section class="note">
+      <h3>重心の考え方（サルでもわかる）</h3>
+      <ul>
+        <li><b>🔴 重みあり重心</b>：各自がバラバラに来る想定。人数が多い地点ほど集合場所に強く影響する。</li>
+        <li><b>🟢 重みなし重心</b>：乗り合い想定。同じ地点は「1か所」として扱う（人数は無視）。</li>
+      </ul>
+      <div class="hint">ピンをクリックすると削除できる。ピン追加時に人数を入力する。</div>
+    </section>
+  </main>
 
-    🔴 <b>重みあり（各自が別々に来る想定）</b><br>
-    人数をそのまま考慮します。人数が多い地点ほど影響が大きい。<br><br>
-
-    🟢 <b>重みなし（乗り合い想定）</b><br>
-    同じ地点は1か所として扱います。人数は無視。<br><br>
-
-    ※ 人数差が大きいほど、2つの重心は離れます。
-  </div>
-
-  <!-- Leaflet JS -->
+  <!-- Leaflet -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
   <script src="./app.js"></script>
 </body>
 </html>
