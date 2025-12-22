@@ -5,12 +5,12 @@
   <title>ごじゃ地図</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-  <!-- PWA -->
-  <link rel="manifest" href="manifest.webmanifest">
-  <meta name="theme-color" content="#ffffff">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-title" content="ごじゃ地図">
-  <link rel="apple-touch-icon" href="icons/apple-touch-icon-180.png">
+  <!-- PWA（既にあるならそのままでOK） -->
+  <link rel="manifest" href="manifest.webmanifest" />
+  <meta name="theme-color" content="#ffffff" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="ごじゃ地図" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon-180.png" />
 
   <!-- Leaflet -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -20,60 +20,64 @@
 </head>
 
 <body>
-  <header class="header">
+  <header class="topbar">
     <div class="title">📍 ごじゃ地図</div>
-    <div class="subtitle">地図をタップして地点追加 → 重心計算 → 周辺おすすめ（距離つき）をポップアップ表示</div>
+    <div class="subtitle">地図をタップして居住地ピン → 重心 →（必要なら）おすすめ表示</div>
   </header>
 
-  <main>
-    <div id="map"></div>
+  <div id="map"></div>
 
+  <section class="panel">
     <div class="controls">
-      <button id="btn-calc" type="button">重心を計算</button>
-      <button id="btn-clear" type="button">全ピン削除</button>
+      <button id="btn-calc" class="btn primary">重心を計算</button>
+      <button id="btn-clear" class="btn">全ピン削除</button>
     </div>
 
-    <section class="note">
-      <h3>重心の考え方（サルでもわかる）</h3>
-      <ul>
-        <li><b>🔴 重み付き重心</b>：人数をそのまま考慮（各自バラバラに来る想定）。人数が多い地点ほど集合場所に強く影響。</li>
-        <li><b>🟢 重みなし重心</b>：地点ごとに同じ重み（乗り合い想定）。同じ地点の人数は無視して「場所の数」で平均。</li>
-      </ul>
-      <div class="hint">ピン：地図タップで追加。ピンをクリックすると削除できる。</div>
-      <div class="hint small">※おすすめは OpenStreetMap（Overpass）から取得するので、場所によって少ない/出ないことがある。</div>
-    </section>
+    <div class="sliderBox">
+      <div class="sliderRow">
+        <div class="sliderLabel">おすすめ半径</div>
+        <div class="sliderValue"><span id="radiusValue">30</span> km</div>
+      </div>
+      <input
+        id="radiusSlider"
+        type="range"
+        min="0"
+        max="100"
+        step="1"
+        value="30"
+        aria-label="おすすめ半径スライダー（0〜100km）"
+      />
+      <div class="sliderHint">
+        0km：おすすめ無し（Google検索リンクだけ）／ 値を上げるほど遠くまで探す
+      </div>
+    </div>
 
-    <section id="result" class="result"></section>
-  </main>
+    <div class="card">
+      <div class="cardTitle">重心の考え方（かんたん）</div>
+      <ul class="cardList">
+        <li><span class="dot red"></span><b>重み付き重心</b>：人数をそのまま考慮（各自バラバラに来る想定）。人数が多い地点ほど集合場所に強く影響。</li>
+        <li><span class="dot green"></span><b>重みなし重心</b>：同じ地点は人数を無視して「地点」だけで平均（乗り合い想定）。</li>
+      </ul>
+      <div class="cardHint">
+        ヒント：ピンはクリックで削除できる。おすすめは「おすすめを表示」を押したときだけ出る。
+      </div>
+      <div class="cardHint">
+        ※おすすめは OpenStreetMap（Overpass）から取得するため、場所によって少ないことがある。
+      </div>
+    </div>
+
+    <div id="result" class="result"></div>
+  </section>
 
   <script src="app.js"></script>
 
-  <!-- Service Worker（PWA） -->
+  <!-- Service Worker登録（PWA） -->
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
         navigator.serviceWorker.register("./sw.js").catch(() => {});
       });
     }
-  </script>
-
-  <!-- 開発用：?dev=1 を付けて開くとキャッシュ/SWを掃除（困った時だけ使う） -->
-  <script>
-    (async function(){
-      const DEV = new URLSearchParams(location.search).get("dev") === "1";
-      if (!DEV) return;
-
-      if ("serviceWorker" in navigator) {
-        const regs = await navigator.serviceWorker.getRegistrations();
-        await Promise.all(regs.map(r => r.unregister()));
-        console.log("DEV: Service Worker unregistered");
-      }
-      if ("caches" in window) {
-        const keys = await caches.keys();
-        await Promise.all(keys.map(k => caches.delete(k)));
-        console.log("DEV: caches cleared", keys);
-      }
-    })();
   </script>
 </body>
 </html>
