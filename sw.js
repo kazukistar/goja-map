@@ -1,7 +1,7 @@
-// ごじゃ地図 PWA Service Worker
-// ポイント：index.html（navigate）はネット優先 → 更新反映しやすい
-const CACHE_NAME = "goja-chizu-cache-v7";
+// ごじゃ地図 PWA Service Worker（v3）
+// index.html を更新しやすくする（navigate はネット優先）
 
+const CACHE_NAME = "goja-chizu-cache-v3";
 const ASSETS = [
   "./",
   "./index.html",
@@ -30,7 +30,7 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   const req = event.request;
 
-  // ページ遷移はネット優先
+  // ページ遷移はネット優先（更新反映が速い）
   if (req.mode === "navigate") {
     event.respondWith(
       fetch(req)
@@ -44,8 +44,6 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // その他はキャッシュ優先
-  event.respondWith(
-    caches.match(req).then((cached) => cached || fetch(req))
-  );
+  // それ以外はキャッシュ優先
+  event.respondWith(caches.match(req).then((cached) => cached || fetch(req)));
 });
