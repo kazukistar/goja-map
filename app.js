@@ -1,9 +1,9 @@
 // ================================
 // ごじゃ地図 app.js
-// 変更点（重要）
-// - 「重心を計算」でおすすめ検索を内部で開始（プリフェッチ）
+// 仕様（重要）
+// - 「重心を計算」押下でおすすめ検索を内部で開始（プリフェッチ）
 // - おすすめ表示は「重心付近の観光地を表示」を押した時だけ
-// - 「計算中…」を最低4秒表示（検索が速くても4秒は出す）
+// - 「計算中…」は result欄に出しつつ、スプラッシュ風の全画面オーバーレイでも表示（最低4秒）
 // ※ UI(HTML/CSS)は一切変更しない：既存のID/ボタン/レイアウトに合わせる
 // ================================
 
@@ -47,12 +47,162 @@ let rec = {
   html: "",
   errorMsg: "",
   pendingDisplay: false, // 表示ボタンを先に押した場合、準備でき次第表示する
-  lastFetchStartedAt: 0, // performance.now
+  lastFetchStartedAt: 0,
   lastFetchDoneAt: 0,
 };
 
-// 「計算中…」を最低この時間表示（要件：4秒）
+// 「計算中…」最低表示時間（要件：4秒）
 const MIN_CALC_DISPLAY_MS = 4000;
+
+// ================================
+// 計算中オーバーレイ（スプラッシュ風）
+// ※ HTML/CSSを触らないため、JSでDOM生成＋インラインstyleで完結
+// ================================
+let calcOverlay = {
+  el: null,
+  hideTimer: null,
+  shownAt: 0,
+  isVisible: false,
+};
+
+function ensureCalcOverlay() {
+  if (calcOverlay.el) return calcOverlay.el;
+
+  const overlay = document.createElement("div");
+  overlay.id = "__calcOverlay";
+  overlay.setAttribute("aria-label", "計算中");
+  overlay.style.position = "fixed";
+  overlay.style.inset = "0";
+  overlay.style.zIndex = "10000";
+  overlay.style.display = "none";
+  overlay.style.alignItems = "center";
+  overlay.style.justifyContent = "center";
+  overlay.style.background = "rgba(0,0,0,0.55)";
+  overlay.style.backdropFilter = "blur(6px)";
+  overlay.style.webkitBackdropFilter = "blur(6px)";
+  overlay.style.transition = "opacity 260ms ease";
+  overlay.style.opacity = "0";
+
+  const box = document.createElement("div");
+  box.style.display = "flex";
+  box.style.flexDirection = "column";
+  box.style.alignItems = "center";
+  box.style.gap = "12px";
+  box.style.padding = "18px 20px";
+  box.style.borderRadius = "18px";
+  box.style.background = "rgba(20,20,20,0.75)";
+  box.style.border = "1px solid rgba(255,255,255,0.12)";
+  box.style.boxShadow = "0 14px 40px rgba(0,0,0,0.35)";
+  box.style.maxWidth = "86vw";
+
+  // アイコン（存在しなくても壊れないように）
+  const img = document.createElement("img");
+  img.alt = "ごじゃ地図";
+  img.src = "icons/icon-192.png";
+  img.style.width = "92px";
+  img.style.height = "92px";
+  img.style.borderRadius = "22px";
+  img.style.objectFit = "cover";
+  img.style.boxShadow = "0 10px 26px rgba(0,0,0,0.35)";
+  img.onerror = () => {
+    // 画像が無い/パス違いでも落ちない（非表示にするだけ）
+    img.style.display = "none";
+  };
+
+  const title = document.createElement("div");
+  title.textContent = "計算中…";
+  title.style.fontSize = "18px";
+  title.style.fontWeight = "800";
+  title.style.letterSpacing = "0.02em";
+  title.style.color = "#fff";
+  title.style.textAlign = "center";
+
+  const sub = document.createElement("div");
+  sub.textContent = "おすすめを準備しています";
+  sub.style.fontSize = "12.5px";
+  sub.style.opacity = "0.8";
+  sub.style.color = "#fff";
+  sub.style.textAlign = "center";
+
+  // 簡易スピナー（CSS追加せずにJSで回す）
+  const spinner = document.createElement("div");
+  spinner.style.width = "26px";
+  spinner.style.height = "26px";
+  spinner.style.borderRadius = "999px";
+  spinner.style.border = "3px solid rgba(255,255,255,0.25)";
+  spinner.style.borderTopColor = "rgba(255,255,255,0.95)";
+  spinner.style.transform = "rotate(0deg)";
+
+  let spinReq = null;
+  let spinAngle = 0;
+  function startSpin() {
+    if (spinReq) return;
+    const tick = () => {
+      spinAngle = (spinAngle + 10) % 360;
+      spinner.style.transform = `rotate(${spinAngle}deg)`;
+      spinReq = requestAnimationFrame(tick);
+    };
+    spinReq = requestAnimationFrame(tick);
+  }
+  function stopSpin() {
+    if (!spinReq) return;
+    cancelAnimationFrame(spinReq);
+    spinReq = null;
+  }
+
+  // overlayに関数をぶら下げ（外から制御）
+  overlay.__startSpin = startSpin;
+  overlay.__stopSpin = stopSpin;
+
+  box.appendChild(img);
+  box.appendChild(title);
+  box.appendChild(sub);
+  box.appendChild(spinner);
+
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+
+  calcOverlay.el = overlay;
+  return overlay;
+}
+
+function showCalcOverlay(minMs = MIN_CALC_DISPLAY_MS) {
+  const overlay = ensureCalcOverlay();
+
+  // 既に表示中なら、最低表示時間だけ更新
+  calcOverlay.shownAt = performance.now();
+  calcOverlay.isVisible = true;
+
+  overlay.style.display = "flex";
+  // 次フレームでopacity上げる（フェードイン）
+  requestAnimationFrame(() => {
+    overlay.style.opacity = "1";
+  });
+
+  if (overlay.__startSpin) overlay.__startSpin();
+
+  // 既存のhide予約を消して、minMs後に必ず消す
+  if (calcOverlay.hideTimer) clearTimeout(calcOverlay.hideTimer);
+  calcOverlay.hideTimer = setTimeout(() => {
+    hideCalcOverlay();
+  }, Math.max(0, minMs));
+}
+
+function hideCalcOverlay() {
+  const overlay = calcOverlay.el;
+  if (!overlay || !calcOverlay.isVisible) return;
+
+  calcOverlay.isVisible = false;
+  overlay.style.opacity = "0";
+
+  // フェードアウト後にdisplay:none
+  setTimeout(() => {
+    if (!calcOverlay.isVisible && overlay) {
+      overlay.style.display = "none";
+      if (overlay.__stopSpin) overlay.__stopSpin();
+    }
+  }, 280);
+}
 
 // ================================
 // Overpass（OSM）設定
@@ -294,8 +444,6 @@ function renderCentroidBaseResult(weighted, unweighted) {
   const gW = `https://www.google.com/maps?q=${weighted.lat},${weighted.lon}`;
   const gU = `https://www.google.com/maps?q=${unweighted.lat},${unweighted.lon}`;
 
-  // おすすめ表示枠はここに必ず確保（UI変更無し：result欄だけ）
-  // ※ 実際のおすすめ一覧は btnRecommend 押下時に差し込む
   const html = `
     <div>
       <b>🔴 重み付き重心（人数考慮）</b><br>
@@ -334,7 +482,6 @@ function resetRecommendationState(keepRadius) {
 
   if (!keepRadius) rec.radiusKm = 30;
 
-  // result欄のおすすめ枠が存在するなら、表示を戻す（一覧は消す）
   const st = document.getElementById("recStatus");
   const cont = document.getElementById("recContent");
   if (st) st.textContent = `「重心付近の観光地を表示」を押すと表示します`;
@@ -345,7 +492,6 @@ function resetRecommendationState(keepRadius) {
 // Overpass クエリ生成
 // ================================
 function buildOverpassQuery(lat, lon, radiusM) {
-  // out center で way/relation も中心座標を得る
   return `
 [out:json][timeout:25];
 (
@@ -398,7 +544,6 @@ function elementLatLon(el) {
 }
 
 function categorizeOsm(tags = {}) {
-  // 温泉
   if (
     tags["amenity"] === "public_bath" ||
     tags["bath:type"] === "onsen" ||
@@ -406,14 +551,11 @@ function categorizeOsm(tags = {}) {
     tags["natural"] === "hot_spring"
   ) return "♨ 温泉";
 
-  // スキー
   if (tags["landuse"] === "winter_sports" || tags["site"] === "piste" || tags["piste:type"])
     return "🎿 スキー場";
 
-  // 歴史
   if (tags["historic"] || tags["tourism"] === "attraction") return "🏯 歴史的観光地";
 
-  // レジャー
   if (
     tags["tourism"] === "theme_park" ||
     tags["leisure"] === "water_park" ||
@@ -462,7 +604,6 @@ async function buildRecommendationsHtml(lat, lon, radiusKm) {
 
   const order = ["♨ 温泉", "🏯 歴史的観光地", "🎡 レジャー施設", "🎿 スキー場"];
 
-  // カテゴリ別・距離順
   const byCat = new Map();
   for (const it of items) {
     if (!byCat.has(it.cat)) byCat.set(it.cat, []);
@@ -503,23 +644,21 @@ async function buildRecommendationsHtml(lat, lon, radiusKm) {
 }
 
 // ================================
-// 「計算中…」を最低4秒表示（おすすめは出さない）
+// result欄の「計算中…」を最低4秒表示（おすすめ一覧は出さない）
 // ================================
 function showCalcStatusForAtLeast4s() {
   const st = document.getElementById("recStatus");
   const cont = document.getElementById("recContent");
 
-  if (cont) cont.innerHTML = ""; // 一覧は消す（表示は押すまで出さない）
+  if (cont) cont.innerHTML = "";
   if (st) st.textContent = "計算中…（おすすめを準備しています）";
 
   const startedAt = performance.now();
 
-  // 4秒経過後に、状況に応じたメッセージへ戻す
   setTimeout(() => {
     const elapsed = performance.now() - startedAt;
-    if (elapsed < MIN_CALC_DISPLAY_MS) return; // 念のため
+    if (elapsed < MIN_CALC_DISPLAY_MS) return;
 
-    // ここでおすすめを表示しない（要件）
     const st2 = document.getElementById("recStatus");
     if (!st2) return;
 
@@ -528,7 +667,6 @@ function showCalcStatusForAtLeast4s() {
     } else if (rec.status === "error") {
       st2.textContent = "取得に失敗しました。「重心付近の観光地を表示」を押して再試行できます";
     } else {
-      // fetching のまま（Overpass混雑など）
       st2.textContent = "まだ計算中です…（準備でき次第、表示ボタンで即表示できます）";
     }
   }, MIN_CALC_DISPLAY_MS);
@@ -546,7 +684,6 @@ function startPrefetchRecommendations(weighted, radiusKm) {
   rec.lastFetchStartedAt = performance.now();
   rec.lastFetchDoneAt = 0;
 
-  // ボタンは押せる（ただし表示はreadyになるまで待機）
   if (btnRecommend) btnRecommend.disabled = false;
 
   const p = (async () => {
@@ -566,19 +703,15 @@ function startPrefetchRecommendations(weighted, radiusKm) {
 
   rec.promise = p;
 
-  // もし「表示」を先に押して待機中なら、準備でき次第その場で表示
   p.then(() => {
     if (rec.pendingDisplay) {
       rec.pendingDisplay = false;
-      renderRecommendationsNow(); // ここで初めて一覧を表示
-    } else {
-      // 4秒表示後に「準備完了」にしたいので、ここではUIを弄らない
-      // （showCalcStatusForAtLeast4s側が最終文言を出す）
+      renderRecommendationsNow();
     }
   }).catch(() => {
     if (rec.pendingDisplay) {
       rec.pendingDisplay = false;
-      renderRecommendationsNow(); // エラー文を出す（一覧は出ない）
+      renderRecommendationsNow();
     }
   });
 }
@@ -598,109 +731,17 @@ function renderRecommendationsNow() {
     return;
   }
 
-  // readyなら即表示
   if (rec.status === "ready") {
     st.textContent = "";
     cont.innerHTML = rec.html || "";
     return;
   }
 
-  // errorならエラーを表示（再試行は次のcalc or スライダー変更でプリフェッチ再開）
   if (rec.status === "error") {
     st.textContent = "取得に失敗しました（回線/混雑の可能性）。もう一度「重心を計算」して再試行してください";
     cont.innerHTML = "";
     return;
   }
 
-  // fetching中：まだ準備できてない
-  // 要件：押したら即結果が出るように → 基本はプリフェッチで間に合う想定
-  // ただ混雑時だけは「準備でき次第表示」へ切り替える
-  rec.pendingDisplay = true;
-  st.textContent = "準備中…（完了し次第ここに表示します）";
-  cont.innerHTML = "";
-}
-
-// ================================
-// 重心計算（メイン）
-// ================================
-function calculateCentroidMain() {
-  if (points.length === 0) {
-    alert("地点が登録されていません");
-    return;
-  }
-
-  // 重心計算
-  const weighted = centroidWeighted(points);
-  const unweighted = centroidUnweighted(points);
-
-  lastCentroids = { weighted, unweighted };
-
-  // 重心マーカー描画（既存UI変更しない）
-  clearCentroidMarkers();
-
-  const weightedMarker = L.marker([weighted.lat, weighted.lon], { icon: ICON_RED })
-    .addTo(map)
-    .bindPopup("🔴 重み付き重心（人数考慮）");
-
-  const unweightedMarker = L.marker([unweighted.lat, unweighted.lon], { icon: ICON_GREEN })
-    .addTo(map)
-    .bindPopup("🟢 重みなし重心（乗り合い前提）");
-
-  centroidMarkers.push(weightedMarker, unweightedMarker);
-
-  map.setView([weighted.lat, weighted.lon], 7);
-
-  // 結果欄：おすすめは出さない（枠＋ステータスだけ）
-  renderCentroidBaseResult(weighted, unweighted);
-
-  // 表示ボタンは有効化（ただし押すまで一覧は出さない）
-  if (btnRecommend) btnRecommend.disabled = false;
-
-  // ここで「計算中…」を4秒表示（おすすめは出さない）
-  showCalcStatusForAtLeast4s();
-
-  // ここで内部プリフェッチ開始
-  const radiusKm = parseInt(radiusValue ? radiusValue.textContent : "30", 10) || 30;
-  startPrefetchRecommendations(weighted, radiusKm);
-}
-
-// ================================
-// 半径スライダー
-// ================================
-function initRadiusSlider() {
-  if (!radiusSlider || !radiusValue) return;
-
-  const apply = () => {
-    const v = parseInt(radiusSlider.value, 10);
-    radiusValue.textContent = String(v);
-
-    // 重心が既にあるなら、半径変更＝おすすめ再プリフェッチ（ただし表示は押すまで出さない）
-    if (lastCentroids && lastCentroids.weighted) {
-      resetRecommendationState(true);
-
-      // 「計算中…」を4秒表示（再計算扱い）
-      showCalcStatusForAtLeast4s();
-
-      // 内部で即プリフェッチ
-      startPrefetchRecommendations(lastCentroids.weighted, v);
-    }
-  };
-
-  radiusSlider.addEventListener("input", apply);
-  // 初期反映
-  apply();
-}
-
-// ================================
-// ボタン配線（UIは変えない）
-// ================================
-if (btnCalc) btnCalc.addEventListener("click", calculateCentroidMain);
-if (btnClear) btnClear.addEventListener("click", clearAllPoints);
-if (btnRecommend) btnRecommend.addEventListener("click", renderRecommendationsNow);
-
-// 初期状態：おすすめは重心計算まで無効
-if (btnRecommend) btnRecommend.disabled = true;
-
-// 初期描画
-renderPinList();
-initRadiusSlider();
+  // fetching中
+  re
