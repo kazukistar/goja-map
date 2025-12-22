@@ -25,6 +25,16 @@
     <div class="splashBox">
       <img class="splashIcon" src="icons/icon-512.png" alt="ごじゃ地図" />
       <div class="splashTitle">ごじゃ地図</div>
+
+      <!-- ▼ ここ：矢印を下向きで目立たせる -->
+      <div class="splashFlow">
+        <div class="flowLine">地図タップで居住地ピン</div>
+        <div class="flowArrow">↓</div>
+        <div class="flowLine">重心で集合場所</div>
+        <div class="flowArrow">↓</div>
+        <div class="flowLine">おすすめは下に表示</div>
+      </div>
+
       <div class="splashSub">起動中…</div>
       <div class="splashSub">ver.1</div>
     </div>
@@ -32,25 +42,30 @@
 
   <!-- Header -->
   <header class="topbar">
+    <!-- ▼ タイトル：大きく＆中央揃え -->
     <div class="appTitle">📍 ごじゃ地図</div>
 
-    <!-- ★ここを「↓」3段にして目立たせる -->
-    <div class="appSub">
-      地図タップで居住地ピン<br>
-      <span class="arrow">↓</span><br>
-      重心で集合場所<br>
-      <span class="arrow">↓</span><br>
-      重心付近の観光地は地図下に表示
+    <!-- ▼ 説明：下向き矢印で3段（中央） -->
+    <div class="appFlow">
+      <div class="flowLine">地図タップで居住地ピン</div>
+      <div class="flowArrow">↓</div>
+      <div class="flowLine">重心で集合場所</div>
+      <div class="flowArrow">↓</div>
+      <div class="flowLine">おすすめは下に表示</div>
     </div>
 
+    <!-- ▼ 操作行：中央揃え -->
     <div class="controlRow">
       <button id="btnCalc" class="btn primary">重心を計算</button>
       <button id="btnClear" class="btn">全ピン削除</button>
-      <button id="btnHardReload" class="btn ghost" title="PWAキャッシュで更新が反映されない時に使う">
+
+      <button
+        id="btnHardReload"
+        class="btn ghost"
+        title="PWAキャッシュで更新が反映されない時に使う（Service Worker解除＋キャッシュ削除＋再読込）"
+      >
         強制更新
       </button>
-
-      <div class="spacer"></div>
 
       <div class="radiusBox">
         <div class="radiusLabel">
@@ -62,6 +77,7 @@
       <button id="btnRecommend" class="btn accent" disabled>重心付近の観光地を表示</button>
     </div>
 
+    <!-- 説明（最初の画面にあってOK） -->
     <details class="help" open>
       <summary>重心の考え方</summary>
       <ul>
@@ -109,15 +125,67 @@
     }
   </script>
 
+  <!-- 強制更新：スマホ用 Ctrl+Shift+R 代替（SW解除＋Cache削除＋?v=で再読込） -->
+  <script>
+    async function hardReloadPWA() {
+      try {
+        // 1) Service Worker 登録を全解除
+        if ("serviceWorker" in navigator) {
+          const regs = await navigator.serviceWorker.getRegistrations();
+          await Promise.all(regs.map(r => r.unregister()));
+        }
+
+        // 2) Cache Storage を全削除
+        if (window.caches && caches.keys) {
+          const keys = await caches.keys();
+          await Promise.all(keys.map(k => caches.delete(k)));
+        }
+
+        // 3) できる範囲でストレージ掃除
+        try { localStorage.clear(); } catch(e) {}
+        try { sessionStorage.clear(); } catch(e) {}
+
+        // indexedDB（対応ブラウザのみ）
+        if (window.indexedDB && indexedDB.databases) {
+          try {
+            const dbs = await indexedDB.databases();
+            await Promise.all((dbs || []).map(db => {
+              if (!db.name) return Promise.resolve();
+              return new Promise(res => {
+                const req = indexedDB.deleteDatabase(db.name);
+                req.onsuccess = req.onerror = req.onblocked = () => res();
+              });
+            }));
+          } catch (e) {}
+        }
+      } finally {
+        // 4) キャッシュバスター付きで再読み込み
+        const url = new URL(location.href);
+        url.searchParams.set("v", Date.now().toString());
+        location.replace(url.toString());
+      }
+    }
+
+    (function () {
+      const btn = document.getElementById("btnHardReload");
+      if (!btn) return;
+      btn.addEventListener("click", () => {
+        const ok = confirm("Service Workerとキャッシュを消して最新版を取り直します。続行する？");
+        if (!ok) return;
+        hardReloadPWA();
+      });
+    })();
+  </script>
+
   <!-- Splash制御：最低3秒は必ず見せる -->
   <script>
     (function () {
       const splash = document.getElementById("splash");
       if (!splash) return;
 
-      const MIN_SHOW_MS = 3000;  // ★最低表示時間：3秒（ここが本体）
-      const MAX_SHOW_MS = 8000;  // 保険：8秒で強制終了
-      const FADE_MS = 420;       // フェードにかける時間（CSSと合わせる）
+      const MIN_SHOW_MS = 3000;  // ★最低表示時間：3秒（ここを変えれば時間調整）
+      const MAX_SHOW_MS = 8000;  // 保険
+      const FADE_MS = 420;       // CSSと合わせる
 
       let hidden = false;
 
@@ -125,13 +193,13 @@
         if (hidden) return;
         hidden = true;
         splash.classList.add("hide");
-        setTimeout(() => splash.remove(), FADE_MS + 50);
+        setTimeout(() => splash.remove(), FADE_MS + 60);
       }
 
       // 3秒経ったら消す（load待ちしない）
       setTimeout(hideSplash, MIN_SHOW_MS);
 
-      // 読み込み完了が早くても、最低3秒は見せる（＝この処理は実質保険）
+      // 読み込みが早くても最低3秒は見せる
       const started = performance.now();
       window.addEventListener("load", () => {
         const elapsed = performance.now() - started;
@@ -139,7 +207,7 @@
         setTimeout(hideSplash, wait);
       });
 
-      // 何があってもMAX_SHOW_MSで消す
+      // 何があってもMAXで消す
       setTimeout(hideSplash, MAX_SHOW_MS);
     })();
   </script>
