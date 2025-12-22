@@ -1,7 +1,13 @@
 // ================================
-// ごじゃ地図：おすすめは「ボタン押下」で表示（Overpass/OSM）版
+// ごじゃ地図：おすすめは「result欄」に表示する版
+// - ポップアップ肥大化しない
+// - 「おすすめを表示」ボタン押下で取得
+// - 半径スライダー（0〜100km）対応
 // ================================
 
+// --------------------
+// 地図初期化
+// --------------------
 const map = L.map("map").setView([36.5, 138.0], 6);
 
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -10,25 +16,54 @@ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
 }).addTo(map);
 
 // --------------------
+// UI（スライダー）
+// --------------------
+const radiusSlider = document.getElementById("radiusSlider");
+const radiusValue = document.getElementById("radiusValue");
+const resultEl = document.getElementById("result");
+
+let poiRadiusKm = Number(radiusSlider?.value ?? 30);
+if (radiusValue) radiusValue.textContent = String(poiRadiusKm);
+
+radiusSlider?.addEventListener("input", () => {
+  poiRadiusKm = Number(radiusSlider.value);
+  if (radiusValue) radiusValue.textContent = String(poiRadiusKm);
+
+  // 半径が変わったら、過去のおすすめキャッシュは無効化（再取得させる）
+  lastRecommendationsHtml = "";
+
+  // 「重心は出てる」状態なら、result欄の表示だけ更新（おすすめは未表示状態に戻す）
+  if (lastCentroid) {
+    renderResult({
+      weighted: lastCentroid,
+      unweighted: lastUnweightedCentroid,
+      message: `おすすめ半径を ${poiRadiusKm}km に変更。必要なら「おすすめを表示」を押して再取得して。`,
+      showRecoButton: true
+    });
+  }
+});
+
+// --------------------
 // ピン管理
 // --------------------
 let points = [];
 let nextPointId = 1;
 
-let centroidMarkers = [];          // 重心マーカー
-let lastCentroid = null;           // { lat, lon }（おすすめ取得用）
-let lastRecommendationsHtml = "";  // 取得後のHTMLキャッシュ
+let centroidMarkers = [];
+let lastCentroid = null;            // 🔴重み付き重心 {lat, lon}
+let lastUnweightedCentroid = null;  // 🟢重みなし重心 {lat, lon}
+let lastRecommendationsHtml = "";   // result欄に出すおすすめHTML（半径変更でクリア）
+let lastRecoStatus = "none";        // "none" | "loading" | "ready"
 
 // --------------------
-// Overpass設定
+// Overpass（OSM）設定
 // --------------------
 const OVERPASS_ENDPOINTS = [
   "https://overpass-api.de/api/interpreter",
   "https://overpass.kumi.systems/api/interpreter"
 ];
 
-const POI_RADIUS_M = 30000; // 30km
-const POI_LIMIT_EACH = 5;   // カテゴリ毎の最大表示
+const POI_LIMIT_EACH = 5; // カテゴリ毎の最大表示
 
 // --------------------
 // 地図クリック → ピン追加
@@ -55,11 +90,12 @@ map.on("click", function (e) {
   };
   points.push(p);
 
-  marker.bindPopup(`人数：${p.count}人<br><small>このピンをクリック→確認で削除</small>`);
+  marker.bindPopup(`人数：${p.count}人<br><small>ピンをクリック → 確認で削除</small>`);
 
   marker.on("click", () => {
     const ok = confirm("このピンを削除しますか？");
     if (!ok) return;
+
     map.removeLayer(marker);
     points = points.filter(x => x.id !== id);
     clearCentroids();
@@ -75,8 +111,10 @@ function clearCentroids() {
   centroidMarkers.forEach(m => map.removeLayer(m));
   centroidMarkers = [];
   lastCentroid = null;
+  lastUnweightedCentroid = null;
   lastRecommendationsHtml = "";
-  document.getElementById("result").innerHTML = "";
+  lastRecoStatus = "none";
+  resultEl.innerHTML = "";
 }
 
 // --------------------
@@ -129,6 +167,7 @@ function centroidWeighted(pts) {
     const lat = p.lat * Math.PI / 180;
     const lon = p.lon * Math.PI / 180;
     const w = p.count;
+
     x += w * Math.cos(lat) * Math.cos(lon);
     y += w * Math.cos(lat) * Math.sin(lon);
     z += w * Math.sin(lat);
@@ -154,17 +193,22 @@ function generateGoogleSearchLinks(lat, lon) {
     { name: "🏯 歴史（Googleで探す）", query: "史跡 OR 城 OR 寺 OR 神社" },
     { name: "🎡 レジャー（Googleで探す）", query: "テーマパーク OR レジャー施設" },
     { name: "🎿 スキー場（Googleで探す）", query: "スキー場" },
-    { name: "❤️ 風俗街＋ホテル（Googleで探す）", query: "歓楽街 OR 繁華街 ホテル" }
+    { name: "🍽 グルメ（Googleで探す）", query: "ご当地グルメ OR 名物 OR 郷土料理 OR 飲食店" },
+    { name: "🌃 繁華街（Googleで探す）", query: "繁華街 OR 飲み屋街" },
+    { name: "🏨 宿（Googleで探す）", query: "ホテル OR 旅館" },
+    { name: "🅿 駐車場（Googleで探す）", query: "駐車場" }
   ];
 
-  let html = `<div class="popup-section"><div class="popup-section-title">🔎 周辺検索（Googleマップ）</div><ul class="popup-list">`;
+  let html = `<div style="margin-top:10px;">
+    <div style="font-weight:900; margin-bottom:6px;">🔎 周辺検索（Googleマップ）</div>
+    <ul style="margin:0; padding-left:18px; line-height:1.5; font-size:13px;">`;
   for (const cat of categories) {
     const url =
       `https://www.google.com/maps/search/${encodeURIComponent(cat.query)}` +
       `/@${lat},${lon},${zoom}z`;
     html += `<li><a href="${url}" target="_blank" rel="noopener">${cat.name}</a></li>`;
   }
-  html += "</ul></div>";
+  html += `</ul></div>`;
   return html;
 }
 
@@ -252,8 +296,19 @@ function elementLatLon(el) {
   return null;
 }
 
-async function getRecommendationsHtml(lat, lon) {
-  const query = buildOverpassQuery(lat, lon, POI_RADIUS_M);
+async function getRecommendationsHtml(lat, lon, radiusKm) {
+  // 0kmは「おすすめ無し」
+  if (radiusKm <= 0) {
+    return `
+      <div style="font-weight:900; font-size:15px; margin-top:10px;">⭐ おすすめ（半径0km）</div>
+      <div style="color:#6b7280; font-size:13px; margin-top:4px;">
+        半径が0kmなので、おすすめは表示しない。必要ならスライダーを上げて。
+      </div>
+    `;
+  }
+
+  const radiusM = Math.round(radiusKm * 1000);
+  const query = buildOverpassQuery(lat, lon, radiusM);
   const data = await overpassFetch(query);
 
   const seen = new Set();
@@ -289,15 +344,18 @@ async function getRecommendationsHtml(lat, lon) {
   const order = ["♨ 温泉", "🏯 歴史的観光地", "🎡 レジャー施設", "🎿 スキー場"];
 
   let html = `
-    <div class="popup-title">⭐ おすすめ（重心から近い順）</div>
-    <div class="popup-sub">半径 約${Math.round(POI_RADIUS_M/1000)}km / カテゴリ毎に最大${POI_LIMIT_EACH}件</div>
+    <div style="font-weight:900; font-size:15px; margin-top:10px;">⭐ おすすめ（重心から近い順）</div>
+    <div style="color:#6b7280; font-size:13px; margin-top:4px;">
+      半径 約${radiusKm}km / カテゴリ毎に最大${POI_LIMIT_EACH}件
+    </div>
   `;
 
   let any = false;
 
   for (const cat of order) {
     const arr = byCat.get(cat) || [];
-    html += `<div class="popup-section"><div class="popup-section-title">${cat}</div><ul class="popup-list">`;
+    html += `<div style="margin-top:10px;"><div style="font-weight:900; margin-bottom:4px;">${cat}</div>`;
+    html += `<ul style="margin:0; padding-left:18px; line-height:1.5; font-size:13px;">`;
 
     if (arr.length === 0) {
       html += `<li>近くに見つからない（OSM未登録の可能性あり）</li>`;
@@ -313,60 +371,164 @@ async function getRecommendationsHtml(lat, lon) {
   }
 
   if (!any) {
-    html += `<div class="popup-sub">おすすめが少ない場所かも。下のGoogle検索が確実。</div>`;
+    html += `<div style="color:#6b7280; font-size:13px; margin-top:8px;">
+      おすすめが少ない場所かも。下のGoogle検索が確実。
+    </div>`;
   }
 
   return html;
 }
 
 // --------------------
-// 🔥 おすすめ表示（ボタン押下）
+// result欄の描画（重心 + ボタン + おすすめ）
 // --------------------
-async function showRecommendations(marker) {
-  if (!lastCentroid || !marker) return;
+function renderResult({ weighted, unweighted, message = "", showRecoButton = true }) {
+  if (!weighted || !unweighted) return;
 
-  // すでに取ってたら再利用（Overpass混雑回避）
-  if (lastRecommendationsHtml) {
-    marker.setPopupContent(lastRecommendationsHtml).openPopup();
+  const gW = `https://www.google.com/maps?q=${weighted.lat},${weighted.lon}`;
+  const gU = `https://www.google.com/maps?q=${unweighted.lat},${unweighted.lon}`;
+
+  let recoArea = "";
+  if (lastRecoStatus === "loading") {
+    recoArea = `<div style="margin-top:10px; font-weight:900;">⭐ おすすめ取得中…</div>`;
+  } else if (lastRecoStatus === "ready" && lastRecommendationsHtml) {
+    recoArea = lastRecommendationsHtml;
+  }
+
+  const recoBtnHtml = showRecoButton ? `
+    <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">
+      <button id="btn-reco" class="btn primary">おすすめを表示（半径 ${poiRadiusKm}km）</button>
+      <button id="btn-reco-clear" class="btn">おすすめを消す</button>
+    </div>
+  ` : "";
+
+  const msgHtml = message
+    ? `<div style="margin-top:10px; color:#6b7280; font-size:13px;">${escapeHtml(message)}</div>`
+    : "";
+
+  resultEl.innerHTML = `
+    <div style="font-weight:900; font-size:15px;">結果</div>
+    <div style="margin-top:8px;">
+      <b>🔴 重み付き重心（人数考慮）</b><br>
+      緯度：${weighted.lat.toFixed(5)} / 経度：${weighted.lon.toFixed(5)}　
+      <a href="${gW}" target="_blank" rel="noopener">Googleマップで開く</a>
+    </div>
+
+    <div style="margin-top:10px;">
+      <b>🟢 重みなし重心（乗り合い想定）</b><br>
+      緯度：${unweighted.lat.toFixed(5)} / 経度：${unweighted.lon.toFixed(5)}　
+      <a href="${gU}" target="_blank" rel="noopener">Googleマップで開く</a>
+    </div>
+
+    ${msgHtml}
+    ${recoBtnHtml}
+
+    <div id="recoArea">
+      ${recoArea}
+    </div>
+  `;
+
+  // ボタン配線
+  const btnReco = document.getElementById("btn-reco");
+  if (btnReco) btnReco.onclick = () => fetchAndShowRecommendations();
+
+  const btnRecoClear = document.getElementById("btn-reco-clear");
+  if (btnRecoClear) btnRecoClear.onclick = () => {
+    lastRecoStatus = "none";
+    lastRecommendationsHtml = "";
+    renderResult({
+      weighted: lastCentroid,
+      unweighted: lastUnweightedCentroid,
+      message: "おすすめを消した。必要ならもう一回「おすすめを表示」。",
+      showRecoButton: true
+    });
+  };
+}
+
+function escapeHtml(s) {
+  return String(s)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+// --------------------
+// おすすめ取得 → result欄へ表示
+// --------------------
+async function fetchAndShowRecommendations() {
+  if (!lastCentroid) return;
+
+  // 既に表示済みなら、そのまま再描画（無駄に叩かない）
+  if (lastRecoStatus === "ready" && lastRecommendationsHtml) {
+    renderResult({
+      weighted: lastCentroid,
+      unweighted: lastUnweightedCentroid,
+      message: "おすすめは表示済み。半径を変えたら再取得される。",
+      showRecoButton: true
+    });
     return;
   }
 
-  marker.setPopupContent("⭐ おすすめスポットを検索中…").openPopup();
+  lastRecoStatus = "loading";
+  renderResult({
+    weighted: lastCentroid,
+    unweighted: lastUnweightedCentroid,
+    message: "おすすめを取得中…",
+    showRecoButton: true
+  });
 
   try {
-    const rec = await getRecommendationsHtml(lastCentroid.lat, lastCentroid.lon);
+    const rec = await getRecommendationsHtml(lastCentroid.lat, lastCentroid.lon, poiRadiusKm);
     const extra = generateGoogleSearchLinks(lastCentroid.lat, lastCentroid.lon);
 
     lastRecommendationsHtml = rec + extra;
-    marker.setPopupContent(lastRecommendationsHtml).openPopup();
+    lastRecoStatus = "ready";
+    renderResult({
+      weighted: lastCentroid,
+      unweighted: lastUnweightedCentroid,
+      message: "",
+      showRecoButton: true
+    });
   } catch (e) {
-    const fallback = `
-      <div class="popup-title">⭐ おすすめ</div>
-      <div class="popup-sub">取得に失敗（回線/混雑の可能性）。下のGoogle検索を使って。</div>
-    `;
-    lastRecommendationsHtml = fallback + generateGoogleSearchLinks(lastCentroid.lat, lastCentroid.lon);
-    marker.setPopupContent(lastRecommendationsHtml).openPopup();
+    lastRecoStatus = "ready";
+    lastRecommendationsHtml = `
+      <div style="font-weight:900; font-size:15px; margin-top:10px;">⭐ おすすめ</div>
+      <div style="color:#6b7280; font-size:13px; margin-top:4px;">
+        取得に失敗（回線/混雑の可能性）。下のGoogle検索を使って。
+      </div>
+    ` + generateGoogleSearchLinks(lastCentroid.lat, lastCentroid.lon);
+
+    renderResult({
+      weighted: lastCentroid,
+      unweighted: lastUnweightedCentroid,
+      message: "取得に失敗したので、Google検索リンクを表示した。",
+      showRecoButton: true
+    });
   }
 }
 
 // --------------------
 // 重心計算（メイン）
 // --------------------
-async function calculateCentroid() {
+function calculateCentroid() {
   if (points.length === 0) {
     alert("地点が登録されていません。地図をタップして追加して。");
     return;
   }
 
-  clearCentroids();
+  clearCentroids(); // 既存の重心やおすすめを一旦クリア（ピン自体は残る）
 
   const weighted = centroidWeighted(points);
   const unweighted = centroidUnweighted(points);
 
   lastCentroid = { lat: weighted.lat, lon: weighted.lon };
-  lastRecommendationsHtml = ""; // 計算し直しでリセット
+  lastUnweightedCentroid = { lat: unweighted.lat, lon: unweighted.lon };
+  lastRecommendationsHtml = "";
+  lastRecoStatus = "none";
 
-  // 重心マーカー（赤：重み付き / 緑：重みなし）
+  // 重心マーカー（軽量）
   const wMarker = L.circleMarker([weighted.lat, weighted.lon], {
     radius: 10,
     color: "red",
@@ -385,42 +547,16 @@ async function calculateCentroid() {
 
   map.setView([weighted.lat, weighted.lon], 7);
 
-  // ✅ 最初のポップアップは小さくする（ここが変更点）
-  const gW = `https://www.google.com/maps?q=${weighted.lat},${weighted.lon}`;
-  const smallPopup = `
-    <div class="popup-title">🔴 重み付き重心</div>
-    <div class="popup-sub">緯度 ${weighted.lat.toFixed(5)} / 経度 ${weighted.lon.toFixed(5)}</div>
-    <div class="popup-links">
-      <a href="${gW}" target="_blank" rel="noopener">Googleマップで開く</a>
-      <a href="javascript:void(0)" id="btn-reco">おすすめを表示</a>
-    </div>
-  `;
+  // ポップアップは小さく情報だけ（おすすめはresult欄）
+  wMarker.bindPopup(`🔴 重み付き重心<br><small>おすすめは下の「おすすめを表示」</small>`).openPopup();
+  uMarker.bindPopup("🟢 重みなし重心");
 
-  wMarker.bindPopup(smallPopup).openPopup();
-
-  // ポップアップ内のボタンは、開いた後にDOMに出るのでイベントを後付け
-  wMarker.on("popupopen", () => {
-    const btn = document.getElementById("btn-reco");
-    if (btn) {
-      btn.onclick = () => showRecommendations(wMarker);
-    }
+  renderResult({
+    weighted: lastCentroid,
+    unweighted: lastUnweightedCentroid,
+    message: `おすすめ半径：${poiRadiusKm}km。必要なら「おすすめを表示」を押して。`,
+    showRecoButton: true
   });
-
-  uMarker.bindPopup("🟢 重みなし重心（乗り合い想定）").closePopup();
-
-  // 画面下の結果表示
-  const gU = `https://www.google.com/maps?q=${unweighted.lat},${unweighted.lon}`;
-  document.getElementById("result").innerHTML = `
-    <b>🔴 重み付き重心（人数考慮）</b><br>
-    緯度：${weighted.lat.toFixed(5)} / 経度：${weighted.lon.toFixed(5)}　
-    <a href="${gW}" target="_blank" rel="noopener">Googleマップで開く</a><br><br>
-
-    <b>🟢 重みなし重心（乗り合い想定）</b><br>
-    緯度：${unweighted.lat.toFixed(5)} / 経度：${unweighted.lon.toFixed(5)}　
-    <a href="${gU}" target="_blank" rel="noopener">Googleマップで開く</a><br><br>
-
-    <small>🔴のポップアップで「おすすめを表示」を押すと、距離つきおすすめが出る。</small>
-  `;
 }
 
 // --------------------
@@ -435,6 +571,8 @@ function clearAllPins() {
   clearCentroids();
 }
 
+// --------------------
 // ボタン
+// --------------------
 document.getElementById("btn-calc").addEventListener("click", calculateCentroid);
 document.getElementById("btn-clear").addEventListener("click", clearAllPins);
