@@ -1,7 +1,7 @@
 // ごじゃ地図 PWA Service Worker
 // ※更新が反映されない時は CACHE_NAME を v◯ に上げる（これが最強）
 
-const CACHE_NAME = "goja-chizu-cache-v7";
+const CACHE_NAME = "goja-chizu-cache-8";
 
 const ASSETS = [
   "./",
