@@ -1,35 +1,30 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="UTF-8">
   <title>ごじゃ地図</title>
 
-  <!-- Leaflet CSS -->
   <link
     rel="stylesheet"
     href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
   />
 
-  <!-- アプリCSS（必ず ./ を付ける） -->
-  <link rel="stylesheet" href="./style.css" />
+  <style>
+    html, body, #map {
+      height: 100%;
+      margin: 0;
+    }
+  </style>
 </head>
-
 <body>
-  <header>📍 ごじゃ地図</header>
-
-  <!-- 地図（ホーム画面） -->
   <div id="map"></div>
 
-  <!-- 下部ナビ（今は見た目だけ） -->
-  <nav class="bottom">
-    <span>🗺 地図</span>
-  </nav>
-
-  <!-- Leaflet JS（app.jsより先！） -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
-  <!-- アプリ本体（必ず ./ を付ける） -->
-  <script src="./app.js"></script>
+  <script>
+    const map = L.map("map").setView([36, 138], 5);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19
+    }).addTo(map);
+  </script>
 </body>
 </html>
