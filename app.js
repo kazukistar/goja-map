@@ -282,7 +282,7 @@ function renderCentroidResultOnly() {
     緯度：${u.lat.toFixed(5)} / 経度：${u.lon.toFixed(5)}　
     <a href="${gU}" target="_blank">Googleマップで開く</a><br/><br/>
 
-    <div class="muted">おすすめは「おすすめを表示」を押すと、下に一覧で出ます（ポップアップは使わない）。</div>
+    <div class="muted">おすすめは「おすすめを表示」を押すと、下に一覧で出ます</div>
     <div style="margin-top:10px;">${generateGoogleSearchLinks(w.lat, w.lon)}</div>
   `;
 }
