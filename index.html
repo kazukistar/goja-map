@@ -7,7 +7,7 @@
 
   <!-- PWA -->
   <link rel="manifest" href="manifest.webmanifest" />
-  <meta name="theme-color" content="#ffffff" />
+  <meta name="theme-color" content="#2b2b2b" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-title" content="ごじゃ地図" />
   <link rel="apple-touch-icon" href="icons/apple-touch-icon-180.png" />
@@ -20,50 +20,78 @@
 </head>
 
 <body>
-  <!-- ▼ スプラッシュ（起動時に一瞬出る） -->
+  <!-- Splash -->
   <div id="splash" aria-label="ごじゃ地図 起動画面">
     <div class="splashBox">
-      <img class="splashIcon" src="icons/icon-512.png" alt="ごじゃ地図 アイコン" />
+      <img class="splashIcon" src="icons/icon-512.png" alt="ごじゃ地図" />
       <div class="splashTitle">ごじゃ地図</div>
       <div class="splashSub">起動中…</div>
     </div>
   </div>
 
-  <header class="top">
-    <div class="titleRow">
-      <div class="appTitle">📍 ごじゃ地図</div>
-      <div class="subTitle">地図タップで居住地 → 重心で集合</div>
-    </div>
+  <!-- Header -->
+  <header class="topbar">
+    <div class="appTitle">📍 ごじゃ地図</div>
+    <div class="appSub">地図タップで居住地ピン → 重心で集合場所 → おすすめは下に表示</div>
 
-    <div class="controls">
-      <button id="btn-calc" class="btn primary">重心を計算</button>
-      <button id="btn-clear" class="btn">全ピン削除</button>
+    <div class="controlRow">
+      <button id="btnCalc" class="btn primary">重心を計算</button>
+      <button id="btnClear" class="btn">全ピン削除</button>
+      <button id="btnHardReload" class="btn ghost" title="PWAキャッシュで更新が反映されない時に使う">
+        強制更新
+      </button>
 
-      <div class="sliderBox">
-        <div class="sliderLabel">おすすめ半径：<span id="radiusValue">30</span> km</div>
-        <input id="radiusSlider" type="range" min="0" max="100" step="5" value="30" />
+      <div class="spacer"></div>
+
+      <div class="radiusBox">
+        <div class="radiusLabel">
+          おすすめ半径：<span id="radiusValue">30</span> km
+        </div>
+        <input id="radiusSlider" type="range" min="0" max="100" value="30" />
       </div>
+
+      <button id="btnRecommend" class="btn accent" disabled>おすすめを表示</button>
     </div>
 
-    <!-- 重心の説明（最初の画面に残す） -->
-    <div class="helpCard">
-      <div class="helpTitle">重心の考え方</div>
-      <ul class="helpList">
-        <li>🔴 <b>重み付き重心</b>：人数をそのまま考慮（各自バラバラに来る想定）。</li>
-        <li>🟢 <b>重みなし重心</b>：同地点は1台で乗り合い想定（地点数で平均）。</li>
+    <details class="help" open>
+      <summary>重心の考え方</summary>
+      <ul>
+        <li>🔴 <b>重み付き重心</b>：人数を考慮（各自バラバラに来る想定）。人数が多い地点ほど集合場所に強く影響。</li>
+        <li>🟢 <b>重みなし重心</b>：地点数で平均（同じ地点は1台で乗り合い想定）。人数は無視して「地点の数」で計算。</li>
       </ul>
-      <div class="helpNote">おすすめはポップアップじゃなく、下の結果欄に表示する。</div>
-    </div>
+      <div class="note">
+        ※ おすすめは OpenStreetMap（Overpass）から取得するので、場所によって少ない/出ないことがある。<br/>
+        ※ ポップアップは小さく（ピン削除はピン一覧からも可能）。
+      </div>
+    </details>
   </header>
 
-  <main class="main">
-    <div id="map"></div>
-    <div id="result" class="result"></div>
+  <!-- Main -->
+  <main class="layout">
+    <section class="leftPane">
+      <div id="map" class="map"></div>
+    </section>
+
+    <section class="rightPane">
+      <div class="panel">
+        <div class="panelTitle">ピン一覧</div>
+        <div id="pinList" class="pinList">
+          <div class="muted">地図をタップしてピンを追加</div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panelTitle">結果 / おすすめ</div>
+        <div id="result" class="result">
+          <div class="muted">まずはピンを置いて「重心を計算」</div>
+        </div>
+      </div>
+    </section>
   </main>
 
   <script src="app.js"></script>
 
-  <!-- Service Worker登録（PWA） -->
+  <!-- Service Worker（PWA） -->
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
@@ -72,7 +100,7 @@
     }
   </script>
 
-  <!-- ▼ スプラッシュ制御：load待ちしなくても必ず消える -->
+  <!-- Splash制御：必ず消える -->
   <script>
     (function () {
       const splash = document.getElementById("splash");
@@ -83,17 +111,17 @@
         if (hidden) return;
         hidden = true;
         splash.classList.add("hide");
-        setTimeout(() => splash.remove(), 350);
+        setTimeout(() => splash.remove(), 420);
       }
 
-      // 必ず消える（loadが来なくても）
+      // load待ちしない（最強）
       setTimeout(hideSplash, 900);
 
-      // 早く読み込み終わったら最低0.6秒は見せる
+      // 早く読み込み終わったら最低0.7秒は見せる
       const started = performance.now();
       window.addEventListener("load", () => {
         const elapsed = performance.now() - started;
-        const wait = Math.max(0, 600 - elapsed);
+        const wait = Math.max(0, 700 - elapsed);
         setTimeout(hideSplash, wait);
       });
 
