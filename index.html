@@ -11,6 +11,22 @@
   <link rel="stylesheet" href="./style.css" />
 </head>
 
+<script>
+  const DEV = new URLSearchParams(location.search).get("dev") === "1";
+
+  if ("serviceWorker" in navigator) {
+    if (DEV) {
+      navigator.serviceWorker.getRegistrations().then(rs => rs.forEach(r => r.unregister()));
+      console.log("DEV: Service Worker 無効化");
+    } else {
+      navigator.serviceWorker.register("./sw.js");
+      console.log("Service Worker 登録");
+    }
+  }
+</script>
+
+
+  
 <body>
   <header>
     <div class="title">📍 ごじゃ地図</div>
