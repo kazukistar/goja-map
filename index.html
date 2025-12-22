@@ -26,7 +26,7 @@
       <img class="splashIcon" src="icons/icon-512.png" alt="ごじゃ地図" />
       <div class="splashTitle">ごじゃ地図</div>
       <div class="splashSub">起動中…</div>
-      <div class="splashSub">2025/12/22~ver. 1.7~</div>
+      <div class="splashSub">2025/12/22~ver. 1.5~</div>
     </div>
   </div>
 
@@ -111,3 +111,149 @@
         if (!r) return;
         r.innerHTML =
           '<div style="color:#ffb3b3;font-weight:900;line-height:1.6">' +
+          '⚠ ' + msg +
+          '</div>' +
+          '<div style="margin-top:8px;color:rgba(255,255,255,0.65);font-weight:700;line-height:1.6">' +
+          '・まず「強制更新」を押す<br/>' +
+          '・それでもダメなら PWA削除 → Safariで開く → もう一度ホーム画面に追加<br/>' +
+          '</div>';
+      }
+      window.__GOJA_DIAG__ = diag;
+
+      window.addEventListener("error", (e) => {
+        diag("JSエラー: " + (e.message || e.type || "unknown"));
+      });
+      window.addEventListener("unhandledrejection", (e) => {
+        diag("Promiseエラー: " + (e.reason && e.reason.message ? e.reason.message : String(e.reason)));
+      });
+
+      window.addEventListener("load", () => {
+        if (typeof L === "undefined") {
+          diag("Leaflet が読み込めてない（CDN/通信/キャッシュ）。");
+        }
+      });
+    })();
+  </script>
+
+  <!-- アプリ本体 -->
+  <script src="app.js" defer></script>
+
+  <!-- Service Worker（PWA） -->
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("./sw.js").catch(() => {});
+      });
+    }
+  </script>
+
+  <!-- 強制更新：スマホ用 Ctrl+Shift+R 代替（SW解除＋Cache削除＋?v=で再読込） -->
+  <script>
+    async function hardReloadPWA() {
+      try {
+        if ("serviceWorker" in navigator) {
+          const regs = await navigator.serviceWorker.getRegistrations();
+          await Promise.all(regs.map(r => r.unregister()));
+        }
+
+        if (window.caches && caches.keys) {
+          const keys = await caches.keys();
+          await Promise.all(keys.map(k => caches.delete(k)));
+        }
+
+        try { localStorage.clear(); } catch(e) {}
+        try { sessionStorage.clear(); } catch(e) {}
+
+        if (window.indexedDB && indexedDB.databases) {
+          try {
+            const dbs = await indexedDB.databases();
+            await Promise.all((dbs || []).map(db => {
+              if (!db.name) return Promise.resolve();
+              return new Promise(res => {
+                const req = indexedDB.deleteDatabase(db.name);
+                req.onsuccess = req.onerror = req.onblocked = () => res();
+              });
+            }));
+          } catch (e) {}
+        }
+      } finally {
+        const url = new URL(location.href);
+        url.searchParams.set("v", Date.now().toString());
+        location.replace(url.toString());
+      }
+    }
+
+    (function () {
+      const btn = document.getElementById("btnHardReload");
+      if (!btn) return;
+      btn.addEventListener("click", () => {
+        const ok = confirm("Service Workerとキャッシュを消して最新版を取り直します。続行する？");
+        if (!ok) return;
+        hardReloadPWA();
+      });
+    })();
+  </script>
+
+  <!-- Splash制御：絶対に消す（loadが来なくても消える） -->
+  <script>
+    (function () {
+      try{
+        const splash = document.getElementById("splash");
+        if (!splash) return;
+
+        const MIN_SHOW_MS = 3000;
+        const FADE_MS = 420;
+
+        let done = false;
+        const t0 = Date.now();
+
+        function forceHide(){
+          if (!splash) return;
+          splash.style.opacity = "0";
+          splash.style.pointerEvents = "none";
+          setTimeout(() => {
+            if (!splash) return;
+            splash.style.display = "none";
+            try{ splash.remove(); }catch(e){}
+          }, 50);
+        }
+
+        function hideSplash(){
+          if (done) return;
+          done = true;
+
+          splash.classList.add("hide");   // 効けばフェード
+          splash.style.pointerEvents = "none";
+
+          // 残る個体に備えて強制的に消す
+          setTimeout(forceHide, FADE_MS + 80);
+        }
+
+        // 3秒後には必ず消す（loadが来なくても消える）
+        setTimeout(hideSplash, MIN_SHOW_MS);
+
+        // DOMできた時点の保険（PWA/BFCache）
+        document.addEventListener("DOMContentLoaded", () => {
+          const left = MIN_SHOW_MS - (Date.now() - t0);
+          setTimeout(hideSplash, Math.max(0, left));
+        });
+
+        // PWA復帰の保険
+        window.addEventListener("pageshow", () => {
+          const left = MIN_SHOW_MS - (Date.now() - t0);
+          setTimeout(hideSplash, Math.max(0, left));
+        });
+
+        // 最悪保険：8秒で強制的に消す
+        setTimeout(forceHide, 8000);
+
+      }catch(e){
+        try{
+          const splash = document.getElementById("splash");
+          if (splash) splash.style.display = "none";
+        }catch(_){}
+      }
+    })();
+  </script>
+</body>
+</html>
