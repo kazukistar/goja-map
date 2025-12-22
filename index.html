@@ -5,7 +5,7 @@
   <title>ごじゃ地図</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-  <!-- PWA（既にあるならそのままでOK） -->
+  <!-- PWA -->
   <link rel="manifest" href="manifest.webmanifest" />
   <meta name="theme-color" content="#ffffff" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -20,54 +20,46 @@
 </head>
 
 <body>
-  <header class="topbar">
-    <div class="title">📍 ごじゃ地図</div>
-    <div class="subtitle">地図をタップして居住地ピン → 重心 →（必要なら）おすすめ表示</div>
-  </header>
+  <!-- ▼ スプラッシュ（起動時に一瞬出る） -->
+  <div id="splash" aria-label="ごじゃ地図 起動画面">
+    <div class="splashBox">
+      <img class="splashIcon" src="icons/icon-512.png" alt="ごじゃ地図 アイコン" />
+      <div class="splashTitle">ごじゃ地図</div>
+      <div class="splashSub">起動中…</div>
+    </div>
+  </div>
 
-  <div id="map"></div>
+  <header class="top">
+    <div class="titleRow">
+      <div class="appTitle">📍 ごじゃ地図</div>
+      <div class="subTitle">地図タップで居住地 → 重心で集合</div>
+    </div>
 
-  <section class="panel">
     <div class="controls">
       <button id="btn-calc" class="btn primary">重心を計算</button>
       <button id="btn-clear" class="btn">全ピン削除</button>
-    </div>
 
-    <div class="sliderBox">
-      <div class="sliderRow">
-        <div class="sliderLabel">おすすめ半径</div>
-        <div class="sliderValue"><span id="radiusValue">30</span> km</div>
-      </div>
-      <input
-        id="radiusSlider"
-        type="range"
-        min="0"
-        max="100"
-        step="1"
-        value="30"
-        aria-label="おすすめ半径スライダー（0〜100km）"
-      />
-      <div class="sliderHint">
-        0km：おすすめ無し（Google検索リンクだけ）／ 値を上げるほど遠くまで探す
+      <div class="sliderBox">
+        <div class="sliderLabel">おすすめ半径：<span id="radiusValue">30</span> km</div>
+        <input id="radiusSlider" type="range" min="0" max="100" step="5" value="30" />
       </div>
     </div>
 
-    <div class="card">
-      <div class="cardTitle">重心の考え方（かんたん）</div>
-      <ul class="cardList">
-        <li><span class="dot red"></span><b>重み付き重心</b>：人数をそのまま考慮（各自バラバラに来る想定）。人数が多い地点ほど集合場所に強く影響。</li>
-        <li><span class="dot green"></span><b>重みなし重心</b>：同じ地点は人数を無視して「地点」だけで平均（乗り合い想定）。</li>
+    <!-- 重心の説明（最初の画面に残す） -->
+    <div class="helpCard">
+      <div class="helpTitle">重心の考え方</div>
+      <ul class="helpList">
+        <li>🔴 <b>重み付き重心</b>：人数をそのまま考慮（各自バラバラに来る想定）。</li>
+        <li>🟢 <b>重みなし重心</b>：同地点は1台で乗り合い想定（地点数で平均）。</li>
       </ul>
-      <div class="cardHint">
-        ヒント：ピンはクリックで削除できる。おすすめは「おすすめを表示」を押したときだけ出る。
-      </div>
-      <div class="cardHint">
-        ※おすすめは OpenStreetMap（Overpass）から取得するため、場所によって少ないことがある。
-      </div>
+      <div class="helpNote">おすすめはポップアップじゃなく、下の結果欄に表示する。</div>
     </div>
+  </header>
 
+  <main class="main">
+    <div id="map"></div>
     <div id="result" class="result"></div>
-  </section>
+  </main>
 
   <script src="app.js"></script>
 
@@ -78,6 +70,36 @@
         navigator.serviceWorker.register("./sw.js").catch(() => {});
       });
     }
+  </script>
+
+  <!-- ▼ スプラッシュ制御：load待ちしなくても必ず消える -->
+  <script>
+    (function () {
+      const splash = document.getElementById("splash");
+      if (!splash) return;
+
+      let hidden = false;
+      function hideSplash() {
+        if (hidden) return;
+        hidden = true;
+        splash.classList.add("hide");
+        setTimeout(() => splash.remove(), 350);
+      }
+
+      // 必ず消える（loadが来なくても）
+      setTimeout(hideSplash, 900);
+
+      // 早く読み込み終わったら最低0.6秒は見せる
+      const started = performance.now();
+      window.addEventListener("load", () => {
+        const elapsed = performance.now() - started;
+        const wait = Math.max(0, 600 - elapsed);
+        setTimeout(hideSplash, wait);
+      });
+
+      // 保険
+      setTimeout(hideSplash, 3000);
+    })();
   </script>
 </body>
 </html>
