@@ -80,9 +80,9 @@ body{
 }
 
 .appTitle{
-  font-size: 30px;      /* ★タイトル大きめ */
+  font-size: 30px;
   font-weight: 900;
-  text-align: center;   /* ★中央揃え */
+  text-align: center;
   letter-spacing: 0.02em;
 }
 
@@ -90,11 +90,10 @@ body{
   margin-top: 6px;
   font-size: 14px;
   color: var(--muted);
-  text-align: center;   /* ★中央揃え */
+  text-align: center;
   line-height: 1.55;
 }
 
-/* ★矢印を目立たせる */
 .appSub .arrow{
   display: inline-block;
   font-size: 18px;
@@ -116,6 +115,7 @@ body{
   flex-wrap: wrap;
 }
 
+/* PC/広い画面では右寄せ用に効かせる */
 .spacer{ flex: 1; min-width: 10px; }
 
 .btn{
@@ -258,5 +258,19 @@ body{
     height: 60vh;
     min-height: 360px;
   }
-  #radiusSlider{ width: 150px; }
+
+  /* ★ここが今回の本命：スマホでは中央揃えにする */
+  .controlRow{
+    justify-content: center;
+  }
+  .spacer{
+    display: none; /* ←右寄せ用の空白を殺す */
+  }
+  .radiusBox{
+    width: 100%;
+    justify-content: center;
+  }
+  #radiusSlider{
+    width: min(360px, 70vw);
+  }
 }
