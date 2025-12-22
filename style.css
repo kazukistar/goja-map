@@ -1,30 +1,55 @@
-/* 画面全体の設定 */
+:root {
+  --bg: #0f0f0f;
+  --accent: #4da3ff;
+}
+
+* {
+  box-sizing: border-box;
+}
+
 body {
   margin: 0;
-  font-family: sans-serif;
+  background: var(--bg);
+  color: white;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+/* ヘッダ */
+header {
+  height: 48px;
+  line-height: 48px;
   text-align: center;
+  font-weight: 600;
+  background: rgba(15, 15, 15, 0.9);
+  backdrop-filter: blur(6px);
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
 }
 
-/* タイトル */
-h2 {
-  margin: 10px 0;
-}
-
-/* 地図のサイズ（超重要） */
+/* 地図（超重要：高さ） */
 #map {
-  height: 70vh;   /* 画面の70%を地図にする */
-  width: 100%;
+  position: fixed;
+  top: 48px;           /* ヘッダ分 */
+  bottom: 56px;        /* 下部ナビ分 */
+  left: 0;
+  right: 0;
 }
 
-/* ボタン */
-button {
-  font-size: 18px;
-  padding: 10px 20px;
-  margin: 10px;
-}
-
-/* 結果表示 */
-#result {
-  margin-top: 10px;
-  font-size: 16px;
+/* 下部ナビ */
+nav.bottom {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 56px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: rgba(15, 15, 15, 0.9);
+  border-top: 1px solid #222;
+  font-size: 14px;
+  color: #aaa;
 }
