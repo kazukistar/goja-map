@@ -8,9 +8,6 @@
 // ================================
 
 (function () {
-  // ----------------
-  // 画面診断表示（index.html側の diag があれば使う）
-  // ----------------
   function diag(msg) {
     try {
       if (typeof window.__GOJA_DIAG__ === "function") return window.__GOJA_DIAG__(msg);
@@ -19,15 +16,11 @@
     } catch (_) {}
   }
 
-  // Leafletが無いならここで終了（落ちない）
   if (typeof window.L === "undefined") {
     diag("Leaflet が読み込めてないため、地図を起動できない。回線 or CDN or PWAキャッシュ。");
     return;
   }
 
-  // ================================
-  // DOM 参照
-  // ================================
   const elPinList = document.getElementById("pinList");
   const elResult = document.getElementById("result");
 
@@ -54,7 +47,6 @@
     maxZoom: 19,
   }).addTo(map);
 
-  // iPhone/PWAで地図が黒くなる対策
   function safeInvalidate() {
     try { map.invalidateSize(true); } catch (_) {}
   }
@@ -77,9 +69,8 @@
   let nextPointId = 1;
 
   let centroidMarkers = [];
-  let lastCentroids = null; // { weighted:{lat,lon}, unweighted:{lat,lon} }
+  let lastCentroids = null;
 
-  // おすすめ（プリフェッチ）管理
   let rec = {
     status: "idle", // idle | fetching | ready | error
     radiusKm: 30,
@@ -229,9 +220,6 @@
   ];
   const POI_LIMIT_EACH = 6;
 
-  // ================================
-  // 小道具：距離（Haversine km）
-  // ================================
   function haversineKm(lat1, lon1, lat2, lon2) {
     const R = 6371;
     const dLat = ((lat2 - lat1) * Math.PI) / 180;
@@ -244,9 +232,6 @@
     return 2 * R * Math.asin(Math.sqrt(a));
   }
 
-  // ================================
-  // 球面重心（重みなし）
-  // ================================
   function centroidUnweighted(pts) {
     let x = 0, y = 0, z = 0;
     const n = pts.length;
@@ -268,9 +253,6 @@
     return { lat: (lat * 180) / Math.PI, lon: (lon * 180) / Math.PI };
   }
 
-  // ================================
-  // 球面重心（重み付き：人数）
-  // ================================
   function centroidWeighted(pts) {
     let x = 0, y = 0, z = 0;
     let total = 0;
@@ -295,9 +277,6 @@
     return { lat: (lat * 180) / Math.PI, lon: (lon * 180) / Math.PI };
   }
 
-  // ================================
-  // マーカー（ピン/重心）管理
-  // ================================
   function clearCentroidMarkers() {
     centroidMarkers.forEach((m) => map.removeLayer(m));
     centroidMarkers = [];
@@ -314,9 +293,6 @@
   const ICON_RED = makeIcon("https://maps.gstatic.com/mapfiles/ms2/micons/red-dot.png");
   const ICON_GREEN = makeIcon("https://maps.gstatic.com/mapfiles/ms2/micons/green-dot.png");
 
-  // ================================
-  // ピン一覧 UI
-  // ================================
   function renderPinList() {
     if (!elPinList) return;
 
@@ -353,6 +329,22 @@
     });
   }
 
+  function resetRecommendationState(keepRadius) {
+    rec.status = "idle";
+    rec.weighted = null;
+    rec.promise = null;
+    rec.html = "";
+    rec.errorMsg = "";
+    rec.pendingDisplay = false;
+
+    if (!keepRadius) rec.radiusKm = 30;
+
+    const st = document.getElementById("recStatus");
+    const cont = document.getElementById("recContent");
+    if (st) st.textContent = `「重心付近の観光地を表示」を押すと表示します`;
+    if (cont) cont.innerHTML = "";
+  }
+
   function deletePointById(id) {
     const idx = points.findIndex((p) => p.id === id);
     if (idx === -1) return;
@@ -361,15 +353,11 @@
     points.splice(idx, 1);
 
     renderPinList();
-
     clearCentroidMarkers();
     lastCentroids = null;
-
     resetRecommendationState(true);
 
-    if (elResult) {
-      elResult.innerHTML = `<div class="muted">まずはピンを置いて「重心を計算」</div>`;
-    }
+    if (elResult) elResult.innerHTML = `<div class="muted">まずはピンを置いて「重心を計算」</div>`;
     if (btnRecommend) btnRecommend.disabled = true;
 
     setTimeout(safeInvalidate, 60);
@@ -383,20 +371,14 @@
     renderPinList();
     clearCentroidMarkers();
     lastCentroids = null;
-
     resetRecommendationState(true);
 
-    if (elResult) {
-      elResult.innerHTML = `<div class="muted">まずはピンを置いて「重心を計算」</div>`;
-    }
+    if (elResult) elResult.innerHTML = `<div class="muted">まずはピンを置いて「重心を計算」</div>`;
     if (btnRecommend) btnRecommend.disabled = true;
 
     setTimeout(safeInvalidate, 60);
   }
 
-  // ================================
-  // 地図クリック → ピン追加
-  // ================================
   map.on("click", (e) => {
     const input = prompt("この地点には何人いますか？");
     if (input === null) return;
@@ -415,39 +397,34 @@
     const id = nextPointId++;
     const marker = L.marker(e.latlng).addTo(map);
 
-    const p = {
+    points.push({
       id,
       lat: e.latlng.lat,
       lon: e.latlng.lng,
       count,
       marker,
-    };
-    points.push(p);
+    });
 
     marker.bindPopup(`人数：${count}人<br>（ピン一覧から削除できます）`);
 
     renderPinList();
-
     clearCentroidMarkers();
     lastCentroids = null;
     resetRecommendationState(true);
 
-    if (elResult) {
-      elResult.innerHTML = `<div class="muted">ピンを追加しました。「重心を計算」を押してください</div>`;
-    }
+    if (elResult) elResult.innerHTML = `<div class="muted">ピンを追加しました。「重心を計算」を押してください</div>`;
     if (btnRecommend) btnRecommend.disabled = true;
 
     setTimeout(safeInvalidate, 60);
   });
 
-  // ================================
-  // result欄の基本表示（おすすめは出さない）
-  // ================================
   function renderCentroidBaseResult(weighted, unweighted) {
     const gW = `https://www.google.com/maps?q=${weighted.lat},${weighted.lon}`;
     const gU = `https://www.google.com/maps?q=${unweighted.lat},${unweighted.lon}`;
 
-    const html = `
+    if (!elResult) return;
+
+    elResult.innerHTML = `
       <div>
         <b>🔴 重み付き重心（人数考慮）</b><br>
         緯度：${weighted.lat.toFixed(5)} / 経度：${weighted.lon.toFixed(5)}<br>
@@ -466,32 +443,8 @@
         <div id="recContent"></div>
       </div>
     `;
-
-    if (elResult) elResult.innerHTML = html;
   }
 
-  // ================================
-  // おすすめ状態の初期化
-  // ================================
-  function resetRecommendationState(keepRadius) {
-    rec.status = "idle";
-    rec.weighted = null;
-    rec.promise = null;
-    rec.html = "";
-    rec.errorMsg = "";
-    rec.pendingDisplay = false;
-
-    if (!keepRadius) rec.radiusKm = 30;
-
-    const st = document.getElementById("recStatus");
-    const cont = document.getElementById("recContent");
-    if (st) st.textContent = `「重心付近の観光地を表示」を押すと表示します`;
-    if (cont) cont.innerHTML = "";
-  }
-
-  // ================================
-  // Overpass クエリ生成
-  // ================================
   function buildOverpassQuery(lat, lon, radiusM) {
     return `
 [out:json][timeout:25];
@@ -569,9 +522,7 @@ out tags center 250;
 
   async function buildRecommendationsHtml(lat, lon, radiusKm) {
     const radiusM = Math.max(0, Math.round(radiusKm * 1000));
-    if (radiusM <= 0) {
-      return `<div class="muted">検索半径が0 kmのため、おすすめは表示できません。</div>`;
-    }
+    if (radiusM <= 0) return `<div class="muted">検索半径が0 kmのため、おすすめは表示できません。</div>`;
 
     const query = buildOverpassQuery(lat, lon, radiusM);
     const data = await overpassFetch(query);
@@ -592,12 +543,10 @@ out tags center 250;
 
       const name = el.tags && el.tags.name ? el.tags.name : "(名前なし)";
       const dist = haversineKm(lat, lon, ll.lat, ll.lon);
-
       items.push({ cat, name, lat: ll.lat, lon: ll.lon, distKm: dist });
     }
 
     const order = ["♨ 温泉", "🏯 歴史的観光地", "🎡 レジャー施設", "🎿 スキー場"];
-
     const byCat = new Map();
     for (const it of items) {
       if (!byCat.has(it.cat)) byCat.set(it.cat, []);
@@ -627,16 +576,11 @@ out tags center 250;
       html += `</ul>`;
     }
 
-    if (!any) {
-      html += `<div class="muted">おすすめが少ない場所です（OSM登録が少ない可能性）。</div>`;
-    }
+    if (!any) html += `<div class="muted">おすすめが少ない場所です（OSM登録が少ない可能性）。</div>`;
     html += `</div>`;
     return html;
   }
 
-  // ================================
-  // result欄の「計算中…」最低4秒
-  // ================================
   function showCalcStatusForAtLeast4s() {
     const st = document.getElementById("recStatus");
     const cont = document.getElementById("recContent");
@@ -651,19 +595,12 @@ out tags center 250;
       const st2 = document.getElementById("recStatus");
       if (!st2) return;
 
-      if (rec.status === "ready") {
-        st2.textContent = "準備完了。「重心付近の観光地を表示」を押してください";
-      } else if (rec.status === "error") {
-        st2.textContent = "取得に失敗しました。「重心付近の観光地を表示」を押して再試行できます";
-      } else {
-        st2.textContent = "まだ計算中です…（準備でき次第、表示ボタンで即表示できます）";
-      }
+      if (rec.status === "ready") st2.textContent = "準備完了。「重心付近の観光地を表示」を押してください";
+      else if (rec.status === "error") st2.textContent = "取得に失敗しました。「重心付近の観光地を表示」を押して再試行できます";
+      else st2.textContent = "まだ計算中です…（準備でき次第、表示ボタンで即表示できます）";
     }, MIN_CALC_DISPLAY_MS);
   }
 
-  // ================================
-  // おすすめプリフェッチ開始
-  // ================================
   function startPrefetchRecommendations(weighted, radiusKm) {
     rec.status = "fetching";
     rec.weighted = weighted;
@@ -701,9 +638,6 @@ out tags center 250;
     });
   }
 
-  // ================================
-  // おすすめ表示
-  // ================================
   function renderRecommendationsNow() {
     const st = document.getElementById("recStatus");
     const cont = document.getElementById("recContent");
@@ -727,15 +661,11 @@ out tags center 250;
       return;
     }
 
-    // fetching中
     st.textContent = "準備中…（取得が終わり次第、自動で表示します）";
     cont.innerHTML = "";
     rec.pendingDisplay = true;
   }
 
-  // ================================
-  // 重心計算
-  // ================================
   function calculateCentroids() {
     if (points.length === 0) {
       alert("地点が登録されていません");
@@ -770,9 +700,6 @@ out tags center 250;
     setTimeout(safeInvalidate, 400);
   }
 
-  // ================================
-  // イベント配線
-  // ================================
   if (btnCalc) btnCalc.addEventListener("click", calculateCentroids);
   if (btnClear) btnClear.addEventListener("click", clearAllPoints);
   if (btnRecommend) btnRecommend.addEventListener("click", renderRecommendationsNow);
@@ -796,7 +723,6 @@ out tags center 250;
     });
   }
 
-  // 初期表示
   renderPinList();
   setTimeout(safeInvalidate, 200);
 })();
