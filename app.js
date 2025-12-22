@@ -1,5 +1,5 @@
 // ================================
-// ごじゃ地図：距離つき「おすすめ」ポップアップ（Overpass/OSM）版
+// ごじゃ地図：おすすめは「ボタン押下」で表示（Overpass/OSM）版
 // ================================
 
 const map = L.map("map").setView([36.5, 138.0], 6);
@@ -15,8 +15,9 @@ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
 let points = [];
 let nextPointId = 1;
 
-let centroidMarkers = []; // 重心マーカー（計算し直しで消す）
-let lastRecommendationsHtml = "";
+let centroidMarkers = [];          // 重心マーカー
+let lastCentroid = null;           // { lat, lon }（おすすめ取得用）
+let lastRecommendationsHtml = "";  // 取得後のHTMLキャッシュ
 
 // --------------------
 // Overpass設定
@@ -73,6 +74,7 @@ map.on("click", function (e) {
 function clearCentroids() {
   centroidMarkers.forEach(m => map.removeLayer(m));
   centroidMarkers = [];
+  lastCentroid = null;
   lastRecommendationsHtml = "";
   document.getElementById("result").innerHTML = "";
 }
@@ -149,12 +151,10 @@ function generateGoogleSearchLinks(lat, lon) {
   const zoom = 11;
   const categories = [
     { name: "♨ 温泉（Googleで探す）", query: "温泉" },
-    { name: "🏯 歴史的観光地（Googleで探す）", query: "史跡 OR 城 OR 寺 OR 神社" },
-    { name: "🎡 レジャー施設（Googleで探す）", query: "テーマパーク OR レジャー施設" },
+    { name: "🏯 歴史（Googleで探す）", query: "史跡 OR 城 OR 寺 OR 神社" },
+    { name: "🎡 レジャー（Googleで探す）", query: "テーマパーク OR レジャー施設" },
     { name: "🎿 スキー場（Googleで探す）", query: "スキー場" },
-    { name: "❤️ 風俗街＋ホテル（Googleで探す）", query: "歓楽街 OR 繁華街 ホテル" },
-    { name: "🍽 飲食（Googleで探す）", query: "ご当地グルメ OR 名物 OR 郷土料理 OR 飲食店" },
-    { name: "🅿 駐車場（Googleで探す）", query: "駐車場" }
+    { name: "❤️ 風俗街＋ホテル（Googleで探す）", query: "歓楽街 OR 繁華街 ホテル" }
   ];
 
   let html = `<div class="popup-section"><div class="popup-section-title">🔎 周辺検索（Googleマップ）</div><ul class="popup-list">`;
@@ -221,7 +221,6 @@ async function overpassFetch(query) {
 }
 
 function categorizeOsm(tags = {}) {
-  // 温泉
   if (
     tags["amenity"] === "public_bath" ||
     tags["bath:type"] === "onsen" ||
@@ -229,17 +228,14 @@ function categorizeOsm(tags = {}) {
     tags["natural"] === "hot_spring"
   ) return "♨ 温泉";
 
-  // スキー
-  if (
-    tags["landuse"] === "winter_sports" ||
-    tags["site"] === "piste" ||
-    tags["piste:type"]
-  ) return "🎿 スキー場";
+  if (tags["landuse"] === "winter_sports" || tags["site"] === "piste" || tags["piste:type"]) {
+    return "🎿 スキー場";
+  }
 
-  // 歴史
-  if (tags["historic"] || tags["tourism"] === "attraction") return "🏯 歴史的観光地";
+  if (tags["historic"] || tags["tourism"] === "attraction") {
+    return "🏯 歴史的観光地";
+  }
 
-  // レジャー
   if (
     tags["tourism"] === "theme_park" ||
     tags["leisure"] === "water_park" ||
@@ -280,7 +276,6 @@ async function getRecommendationsHtml(lat, lon) {
     items.push({ cat, name, lat: ll.lat, lon: ll.lon, distKm: dist });
   }
 
-  // カテゴリ別に距離順
   const byCat = new Map();
   for (const it of items) {
     if (!byCat.has(it.cat)) byCat.set(it.cat, []);
@@ -318,10 +313,40 @@ async function getRecommendationsHtml(lat, lon) {
   }
 
   if (!any) {
-    html += `<div class="popup-sub">おすすめが少ない場所かも。下の「Googleで探す」が確実。</div>`;
+    html += `<div class="popup-sub">おすすめが少ない場所かも。下のGoogle検索が確実。</div>`;
   }
 
   return html;
+}
+
+// --------------------
+// 🔥 おすすめ表示（ボタン押下）
+// --------------------
+async function showRecommendations(marker) {
+  if (!lastCentroid || !marker) return;
+
+  // すでに取ってたら再利用（Overpass混雑回避）
+  if (lastRecommendationsHtml) {
+    marker.setPopupContent(lastRecommendationsHtml).openPopup();
+    return;
+  }
+
+  marker.setPopupContent("⭐ おすすめスポットを検索中…").openPopup();
+
+  try {
+    const rec = await getRecommendationsHtml(lastCentroid.lat, lastCentroid.lon);
+    const extra = generateGoogleSearchLinks(lastCentroid.lat, lastCentroid.lon);
+
+    lastRecommendationsHtml = rec + extra;
+    marker.setPopupContent(lastRecommendationsHtml).openPopup();
+  } catch (e) {
+    const fallback = `
+      <div class="popup-title">⭐ おすすめ</div>
+      <div class="popup-sub">取得に失敗（回線/混雑の可能性）。下のGoogle検索を使って。</div>
+    `;
+    lastRecommendationsHtml = fallback + generateGoogleSearchLinks(lastCentroid.lat, lastCentroid.lon);
+    marker.setPopupContent(lastRecommendationsHtml).openPopup();
+  }
 }
 
 // --------------------
@@ -337,6 +362,9 @@ async function calculateCentroid() {
 
   const weighted = centroidWeighted(points);
   const unweighted = centroidUnweighted(points);
+
+  lastCentroid = { lat: weighted.lat, lon: weighted.lon };
+  lastRecommendationsHtml = ""; // 計算し直しでリセット
 
   // 重心マーカー（赤：重み付き / 緑：重みなし）
   const wMarker = L.circleMarker([weighted.lat, weighted.lon], {
@@ -357,27 +385,31 @@ async function calculateCentroid() {
 
   map.setView([weighted.lat, weighted.lon], 7);
 
-  // まずは「検索中」
-  wMarker.bindPopup("⭐ おすすめスポットを検索中…").openPopup();
-  uMarker.bindPopup("🟢 重みなし重心（乗り合い想定）<br><small>距離つきおすすめは🔴側に表示</small>");
-
-  // おすすめ取得 → ポップアップ更新（ここが「前の出方」）
-  try {
-    lastRecommendationsHtml = await getRecommendationsHtml(weighted.lat, weighted.lon);
-    const extra = generateGoogleSearchLinks(weighted.lat, weighted.lon);
-    wMarker.setPopupContent(lastRecommendationsHtml + extra).openPopup();
-  } catch (e) {
-    const fallback = `
-      <div class="popup-title">⭐ おすすめ</div>
-      <div class="popup-sub">取得に失敗（回線/混雑の可能性）。下のGoogle検索を使って。</div>
-    `;
-    wMarker.setPopupContent(fallback + generateGoogleSearchLinks(weighted.lat, weighted.lon)).openPopup();
-  }
-
-  // 画面下の結果（おまけ）
+  // ✅ 最初のポップアップは小さくする（ここが変更点）
   const gW = `https://www.google.com/maps?q=${weighted.lat},${weighted.lon}`;
-  const gU = `https://www.google.com/maps?q=${unweighted.lat},${unweighted.lon}`;
+  const smallPopup = `
+    <div class="popup-title">🔴 重み付き重心</div>
+    <div class="popup-sub">緯度 ${weighted.lat.toFixed(5)} / 経度 ${weighted.lon.toFixed(5)}</div>
+    <div class="popup-links">
+      <a href="${gW}" target="_blank" rel="noopener">Googleマップで開く</a>
+      <a href="javascript:void(0)" id="btn-reco">おすすめを表示</a>
+    </div>
+  `;
 
+  wMarker.bindPopup(smallPopup).openPopup();
+
+  // ポップアップ内のボタンは、開いた後にDOMに出るのでイベントを後付け
+  wMarker.on("popupopen", () => {
+    const btn = document.getElementById("btn-reco");
+    if (btn) {
+      btn.onclick = () => showRecommendations(wMarker);
+    }
+  });
+
+  uMarker.bindPopup("🟢 重みなし重心（乗り合い想定）").closePopup();
+
+  // 画面下の結果表示
+  const gU = `https://www.google.com/maps?q=${unweighted.lat},${unweighted.lon}`;
   document.getElementById("result").innerHTML = `
     <b>🔴 重み付き重心（人数考慮）</b><br>
     緯度：${weighted.lat.toFixed(5)} / 経度：${weighted.lon.toFixed(5)}　
@@ -385,7 +417,9 @@ async function calculateCentroid() {
 
     <b>🟢 重みなし重心（乗り合い想定）</b><br>
     緯度：${unweighted.lat.toFixed(5)} / 経度：${unweighted.lon.toFixed(5)}　
-    <a href="${gU}" target="_blank" rel="noopener">Googleマップで開く</a>
+    <a href="${gU}" target="_blank" rel="noopener">Googleマップで開く</a><br><br>
+
+    <small>🔴のポップアップで「おすすめを表示」を押すと、距離つきおすすめが出る。</small>
   `;
 }
 
