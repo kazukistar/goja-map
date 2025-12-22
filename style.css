@@ -1,60 +1,272 @@
-<script>
-  // ============================
-  // 強制更新（スマホ用 Ctrl+Shift+R 代替）
-  // ============================
-  async function hardReloadPWA() {
-    // UI的に「押せた感」を出すならここでalertやボタン無効化してもOK
-    try {
-      // 1) Service Worker 登録を全解除
-      if ("serviceWorker" in navigator) {
-        const regs = await navigator.serviceWorker.getRegistrations();
-        await Promise.all(regs.map(r => r.unregister()));
-      }
+:root{
+  --bg: #0f1115;
+  --panel: rgba(255,255,255,0.06);
+  --panel2: rgba(255,255,255,0.08);
+  --stroke: rgba(255,255,255,0.12);
+  --text: rgba(255,255,255,0.92);
+  --muted: rgba(255,255,255,0.62);
+  --accent: #f6c453;      /* ゴールド */
+  --accent2: #3ddc97;     /* うっすら緑 */
+  --primary: #f6c453;
+  --shadow: 0 14px 40px rgba(0,0,0,0.45);
+  --radius: 18px;
+  --gap: 14px;
+}
 
-      // 2) Cache Storage を全削除
-      if (window.caches && caches.keys) {
-        const keys = await caches.keys();
-        await Promise.all(keys.map(k => caches.delete(k)));
-      }
+*{ box-sizing: border-box; }
+html, body{ height: 100%; }
+body{
+  margin: 0;
+  background: radial-gradient(1200px 600px at 50% -100px, rgba(246,196,83,0.12), transparent 55%),
+              radial-gradient(900px 450px at 10% 20%, rgba(61,220,151,0.10), transparent 60%),
+              var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans JP", sans-serif;
+}
 
-      // 3) 可能ならストレージ掃除（できる範囲で）
-      // localStorage / sessionStorage
-      try { localStorage.clear(); } catch(e) {}
-      try { sessionStorage.clear(); } catch(e) {}
+/* =============== Splash =============== */
+#splash{
+  position: fixed;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(0,0,0,0.35), rgba(0,0,0,0.85));
+  backdrop-filter: blur(8px);
+  display: grid;
+  place-items: center;
+  z-index: 9999;
+}
+.splashBox{
+  text-align: center;
+  padding: 24px 20px;
+  border-radius: 22px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.10);
+  box-shadow: var(--shadow);
+  width: min(520px, calc(100vw - 36px));
+}
+.splashIcon{
+  width: 92px;
+  height: 92px;
+  border-radius: 22px;
+  box-shadow: 0 10px 24px rgba(0,0,0,0.35);
+  margin-bottom: 10px;
+}
+.splashTitle{
+  font-size: 38px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  line-height: 1.05;
+}
+.splashFlow{
+  margin: 14px auto 10px;
+  display: grid;
+  gap: 8px;
+  justify-items: center;
+  font-size: 16px;
+  color: var(--muted);
+}
+.flowLine{ font-weight: 700; }
+.flowArrow{
+  font-size: 24px;
+  font-weight: 900;
+  color: rgba(255,255,255,0.78);
+  line-height: 1;
+}
+.splashSub{
+  margin-top: 6px;
+  color: rgba(255,255,255,0.55);
+  font-size: 13px;
+}
+#splash.hide{
+  animation: splashFade 420ms ease forwards;
+}
+@keyframes splashFade{
+  to{ opacity: 0; visibility: hidden; }
+}
 
-      // indexedDB（あるなら全削除）
-      if (window.indexedDB && indexedDB.databases) {
-        try {
-          const dbs = await indexedDB.databases();
-          await Promise.all((dbs || []).map(db => {
-            if (!db.name) return Promise.resolve();
-            return new Promise(res => {
-              const req = indexedDB.deleteDatabase(db.name);
-              req.onsuccess = req.onerror = req.onblocked = () => res();
-            });
-          }));
-        } catch(e) {
-          // iOS/Safariはdatabases()が無い場合があるので無視
-        }
-      }
+/* =============== Topbar =============== */
+.topbar{
+  padding: 14px 14px 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.10);
+  background: linear-gradient(180deg, rgba(0,0,0,0.45), rgba(0,0,0,0.15));
+  backdrop-filter: blur(8px);
+}
 
-    } finally {
-      // 4) キャッシュバスター付きで再読み込み（これが効く）
-      const url = new URL(location.href);
-      url.searchParams.set("v", Date.now().toString());
-      location.replace(url.toString());
-    }
+/* タイトル：中央＆大きめ */
+.appTitle{
+  text-align: center;
+  font-size: 32px;
+  font-weight: 900;
+  letter-spacing: 0.03em;
+  margin: 2px 0 4px;
+}
+
+/* 説明：矢印下向き3段（中央） */
+.appFlow{
+  text-align: center;
+  display: grid;
+  gap: 6px;
+  justify-items: center;
+  margin: 4px 0 12px;
+  color: rgba(255,255,255,0.70);
+}
+.appFlow .flowLine{
+  font-size: 14px;
+  font-weight: 800;
+}
+.appFlow .flowArrow{
+  font-size: 18px;
+  opacity: 0.95;
+}
+
+/* =============== Controls row =============== */
+/* ★ここが赤丸の中央揃えの本体 */
+.controlRow{
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;   /* ←中央寄せ */
+  align-items: center;
+  gap: 10px;
+  margin: 8px 0 10px;
+}
+
+.btn{
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.92);
+  padding: 10px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  transition: transform 120ms ease, background 120ms ease, border 120ms ease, opacity 120ms ease;
+}
+.btn:hover{ transform: translateY(-1px); background: rgba(255,255,255,0.09); }
+.btn:active{ transform: translateY(0px) scale(0.99); }
+
+.btn.primary{
+  background: rgba(246,196,83,0.18);
+  border-color: rgba(246,196,83,0.45);
+  color: rgba(255,255,255,0.96);
+}
+.btn.accent{
+  background: rgba(61,220,151,0.14);
+  border-color: rgba(61,220,151,0.45);
+}
+.btn.ghost{
+  background: rgba(255,255,255,0.03);
+  border-style: dashed;
+  opacity: 0.92;
+}
+.btn:disabled{
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.radiusBox{
+  display: grid;
+  gap: 6px;
+  padding: 10px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.04);
+  min-width: min(520px, calc(100vw - 32px)); /* モバイルで見切れにくく */
+}
+.radiusLabel{
+  text-align: center;
+  font-weight: 800;
+  color: rgba(255,255,255,0.82);
+}
+#radiusSlider{
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+/* =============== Help =============== */
+.help{
+  margin: 10px auto 0;
+  max-width: 980px;
+  border-radius: var(--radius);
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.05);
+  overflow: hidden;
+}
+.help > summary{
+  cursor: pointer;
+  padding: 12px 14px;
+  font-weight: 900;
+  list-style: none;
+}
+.help > summary::-webkit-details-marker{ display:none; }
+.help ul{
+  margin: 0;
+  padding: 0 18px 10px 38px;
+  color: rgba(255,255,255,0.80);
+}
+.note{
+  padding: 0 14px 14px;
+  color: rgba(255,255,255,0.58);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* =============== Layout =============== */
+.layout{
+  display: grid;
+  grid-template-columns: 1.35fr 0.85fr;
+  gap: var(--gap);
+  padding: 12px 12px 16px;
+}
+
+.leftPane, .rightPane{
+  min-height: 0;
+}
+
+.map{
+  height: calc(100vh - 320px);
+  min-height: 420px;
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.10);
+  box-shadow: var(--shadow);
+}
+
+.panel{
+  border-radius: var(--radius);
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.05);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  margin-bottom: var(--gap);
+}
+.panelTitle{
+  padding: 12px 14px;
+  font-weight: 900;
+  border-bottom: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.03);
+}
+.pinList, .result{
+  padding: 12px 14px;
+  color: rgba(255,255,255,0.86);
+}
+.muted{
+  color: rgba(255,255,255,0.55);
+  font-weight: 700;
+}
+
+/* =============== Mobile =============== */
+@media (max-width: 980px){
+  .layout{
+    grid-template-columns: 1fr;
   }
-
-  // ボタンに割り当て
-  (function () {
-    const btn = document.getElementById("btnHardReload");
-    if (!btn) return;
-    btn.addEventListener("click", () => {
-      // 誤爆防止したいなら confirm をON
-      const ok = confirm("Service Workerとキャッシュを消して最新版を取り直します。続行する？");
-      if (!ok) return;
-      hardReloadPWA();
-    });
-  })();
-</script>
+  .map{
+    height: 56vh;
+    min-height: 380px;
+  }
+  .radiusBox{
+    min-width: min(720px, calc(100vw - 32px));
+  }
+  .appTitle{
+    font-size: 30px;
+  }
+}
