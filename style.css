@@ -1,79 +1,283 @@
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-  <meta charset="UTF-8" />
-  <title>ごじゃ地図</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+:root{
+  --bg: #0f1115;
+  --panel: rgba(255,255,255,0.06);
+  --panel2: rgba(255,255,255,0.08);
+  --stroke: rgba(255,255,255,0.12);
+  --text: rgba(255,255,255,0.92);
+  --muted: rgba(255,255,255,0.62);
+  --accent: #f6c453;
+  --accent2: #3ddc97;
+  --primary: #f6c453;
+  --shadow: 0 14px 40px rgba(0,0,0,0.45);
+  --radius: 18px;
+  --gap: 14px;
+}
 
-  <!-- PWA -->
-  <link rel="manifest" href="manifest.webmanifest" />
-  <meta name="theme-color" content="#2b2b2b" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-title" content="ごじゃ地図" />
-  <link rel="apple-touch-icon" href="icons/apple-touch-icon-180.png" />
+*{ box-sizing: border-box; }
+html, body{ height: 100%; }
+body{
+  margin: 0;
+  background: radial-gradient(1200px 600px at 50% -100px, rgba(246,196,83,0.12), transparent 55%),
+              radial-gradient(900px 450px at 10% 20%, rgba(61,220,151,0.10), transparent 60%),
+              var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans JP", sans-serif;
+}
 
-  <!-- Leaflet -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+/* =============== Splash =============== */
+#splash{
+  position: fixed;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(0,0,0,0.35), rgba(0,0,0,0.85));
+  backdrop-filter: blur(8px);
+  display: grid;
+  place-items: center;
+  z-index: 9999;
+}
+.splashBox{
+  text-align: center;
+  padding: 24px 20px;
+  border-radius: 22px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.10);
+  box-shadow: var(--shadow);
+  width: min(520px, calc(100vw - 36px));
+}
+.splashIcon{
+  width: 92px;
+  height: 92px;
+  border-radius: 22px;
+  box-shadow: 0 10px 24px rgba(0,0,0,0.35);
+  margin-bottom: 10px;
+}
+.splashTitle{
+  font-size: 38px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  line-height: 1.05;
+}
+.splashSub{
+  margin-top: 6px;
+  color: rgba(255,255,255,0.55);
+  font-size: 13px;
+}
+#splash.hide{
+  animation: splashFade 420ms ease forwards;
+}
+@keyframes splashFade{
+  to{ opacity: 0; visibility: hidden; }
+}
 
-  <link rel="stylesheet" href="style.css" />
-</head>
+/* =============== Topbar =============== */
+.topbar{
+  padding: 14px 14px 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.10);
+  background: linear-gradient(180deg, rgba(0,0,0,0.45), rgba(0,0,0,0.15));
+  backdrop-filter: blur(8px);
+}
 
-<body>
-  <!-- Splash（矢印フロー無し） -->
-  <div id="splash" aria-label="ごじゃ地図 起動画面">
-    <div class="splashBox">
-      <img class="splashIcon" src="icons/icon-512.png" alt="ごじゃ地図" />
-      <div class="splashTitle">ごじゃ地図</div>
-      <div class="splashSub">起動中…</div>
-      <div class="splashSub">2025/12/22~ver. 1.5~</div>
-    </div>
-  </div>
+.appTitle{
+  text-align: center;
+  font-size: 32px;
+  font-weight: 900;
+  letter-spacing: 0.03em;
+  margin: 2px 0 4px;
+}
 
-  <!-- Header -->
-  <header class="topbar">
-    <div class="appTitle">📍 ごじゃ地図</div>
+.appFlow{
+  text-align: center;
+  display: grid;
+  gap: 6px;
+  justify-items: center;
+  margin: 4px 0 12px;
+  color: rgba(255,255,255,0.70);
+}
+.appFlow .flowLine{
+  font-size: 14px;
+  font-weight: 800;
+}
+.appFlow .flowArrow{
+  font-size: 18px;
+  opacity: 0.95;
+}
 
-    <!-- 説明：矢印下向き3段（中央） -->
-    <div class="appFlow">
-      <div class="flowLine">地図タップで居住地ピン</div>
-      <div class="flowArrow">↓</div>
-      <div class="flowLine">重心計算で集合場所割り出し</div>
-      <div class="flowArrow">↓</div>
-      <div class="flowLine">重心付近の観光地は地図の下に表示</div>
-    </div>
+/* =============== Controls row =============== */
+.controlRow{
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 0 10px;
+}
 
-    <!-- 操作行：中央揃え -->
-    <div class="controlRow">
-      <button id="btnCalc" class="btn primary">重心を計算</button>
-      <button id="btnClear" class="btn">全ピン削除</button>
+.btn{
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.92);
+  padding: 10px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  transition: transform 120ms ease, background 120ms ease, border 120ms ease, opacity 120ms ease;
+}
+.btn:hover{ transform: translateY(-1px); background: rgba(255,255,255,0.09); }
+.btn:active{ transform: translateY(0px) scale(0.99); }
 
-      <button
-        id="btnHardReload"
-        class="btn ghost"
-        title="PWAキャッシュで更新が反映されない時に使う（Service Worker解除＋キャッシュ削除＋再読込）"
-      >
-        強制更新
-      </button>
+.btn.primary{
+  background: rgba(246,196,83,0.18);
+  border-color: rgba(246,196,83,0.45);
+  color: rgba(255,255,255,0.96);
+}
+.btn.accent{
+  background: rgba(61,220,151,0.14);
+  border-color: rgba(61,220,151,0.45);
+}
+.btn.ghost{
+  background: rgba(255,255,255,0.03);
+  border-style: dashed;
+  opacity: 0.92;
+}
+.btn:disabled{
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+}
 
-      <div class="radiusBox">
-        <div class="radiusLabel">
-          検索半径：<span id="radiusValue">30</span> km
-        </div>
-        <input id="radiusSlider" type="range" min="0" max="100" value="30" />
-      </div>
+/* ピン削除を押しやすく */
+.btn.small{
+  padding: 10px 14px;
+  font-size: 14px;
+  min-height: 40px;
+  min-width: 72px;
+}
 
-      <button id="btnRecommend" class="btn accent" disabled>重心付近の観光地を表示</button>
-    </div>
+.radiusBox{
+  display: grid;
+  gap: 6px;
+  padding: 10px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.04);
+  min-width: min(520px, calc(100vw - 32px));
+}
+.radiusLabel{
+  text-align: center;
+  font-weight: 800;
+  color: rgba(255,255,255,0.82);
+}
+#radiusSlider{
+  width: 100%;
+  accent-color: var(--accent);
+}
 
-    <!-- 説明（最初の画面にあってOK） -->
-    <details class="help" open>
-      <summary>重心の考え方</summary>
-      <ul>
-        <li>🔴 <b>重み付き重心</b>：人数を考慮（各自バラバラに来る想定）人数が多い地点ほど集合場所に強く影響</li>
-        <li>🟢 <b>重みなし重心</b>：地点数で平均（同じ地点は1台で乗り合い想定）人数は無視して「地点の数」で計算</li>
-      </ul>
-      <div class="note">
-        ※ おすすめは OpenStreetMap（Overpass）から取得するので、場所によって少ない/出ないことがある<br/>
-        ※ ピン削除はピン一覧からも可能
-      </div>
+/* =============== Help =============== */
+.help{
+  margin: 10px auto 0;
+  max-width: 980px;
+  border-radius: var(--radius);
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.05);
+  overflow: hidden;
+}
+.help > summary{
+  cursor: pointer;
+  padding: 12px 14px;
+  font-weight: 900;
+  list-style: none;
+}
+.help > summary::-webkit-details-marker{ display:none; }
+.help ul{
+  margin: 0;
+  padding: 0 18px 10px 38px;
+  color: rgba(255,255,255,0.80);
+}
+.note{
+  padding: 0 14px 14px;
+  color: rgba(255,255,255,0.58);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* =============== Layout =============== */
+.layout{
+  display: grid;
+  grid-template-columns: 1.35fr 0.85fr;
+  gap: var(--gap);
+  padding: 12px 12px 16px;
+}
+
+.leftPane, .rightPane{
+  min-height: 0;
+}
+
+/* iPhone/PWA対策：100vhズレ回避 */
+.map{
+  height: calc(100vh - 320px);
+  height: calc(100dvh - 320px);
+  min-height: 420px;
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.10);
+  box-shadow: var(--shadow);
+  background: rgba(0,0,0,0.12);
+}
+
+.panel{
+  border-radius: var(--radius);
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.05);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  margin-bottom: var(--gap);
+}
+.panelTitle{
+  padding: 12px 14px;
+  font-weight: 900;
+  border-bottom: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.03);
+}
+.pinList, .result{
+  padding: 12px 14px;
+  color: rgba(255,255,255,0.86);
+}
+.muted{
+  color: rgba(255,255,255,0.55);
+  font-weight: 700;
+}
+
+/* ピン一覧の行（JSがこのクラスを使う） */
+.pinRow{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 10px;
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 14px;
+  background: rgba(255,255,255,0.03);
+  margin-bottom: 10px;
+}
+.pinMeta{
+  display: grid;
+  gap: 4px;
+}
+
+/* =============== Mobile =============== */
+@media (max-width: 980px){
+  .layout{
+    grid-template-columns: 1fr;
+  }
+  .map{
+    height: 56vh;
+    height: 56dvh;
+    min-height: 380px;
+  }
+  .radiusBox{
+    min-width: min(720px, calc(100vw - 32px));
+  }
+  .appTitle{
+    font-size: 30px;
+  }
+}
