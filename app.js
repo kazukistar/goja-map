@@ -12,7 +12,7 @@ function initMap() {
 
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     maxZoom: 19,
-    attribution: "© OpenStreetMap",
+    attribution: "© OpenStreetMap contributors",
   }).addTo(map);
 
   mapInitialized = true;
@@ -26,10 +26,11 @@ function showMap() {
     initMap();
   }
 
-  // これが無いとUI変更後に白くなる
+  // UI変更後に必須
   map.invalidateSize();
 }
 
-window.onload = () => {
+// ページ読み込み完了後に実行
+window.addEventListener("load", () => {
   showMap();
-};
+});
