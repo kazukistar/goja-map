@@ -26,7 +26,7 @@
       <img class="splashIcon" src="icons/icon-512.png" alt="ごじゃ地図" />
       <div class="splashTitle">ごじゃ地図</div>
       <div class="splashSub">起動中…</div>
-      <div class="splashSub">2025/12/22~ver. 1.6~</div>
+      <div class="splashSub">2025/12/22~ver. 1.5~</div>
     </div>
   </div>
 
@@ -103,94 +103,11 @@
     </section>
   </main>
 
-  <script src="app.js"></script>
-
-  <!-- Service Worker（PWA） -->
-  <script>
-    if ("serviceWorker" in navigator) {
-      window.addEventListener("load", () => {
-        navigator.serviceWorker.register("./sw.js").catch(() => {});
-      });
-    }
-  </script>
-
-  <!-- 強制更新：スマホ用 Ctrl+Shift+R 代替（SW解除＋Cache削除＋?v=で再読込） -->
-  <script>
-    async function hardReloadPWA() {
-      try {
-        if ("serviceWorker" in navigator) {
-          const regs = await navigator.serviceWorker.getRegistrations();
-          await Promise.all(regs.map(r => r.unregister()));
-        }
-
-        if (window.caches && caches.keys) {
-          const keys = await caches.keys();
-          await Promise.all(keys.map(k => caches.delete(k)));
-        }
-
-        try { localStorage.clear(); } catch(e) {}
-        try { sessionStorage.clear(); } catch(e) {}
-
-        if (window.indexedDB && indexedDB.databases) {
-          try {
-            const dbs = await indexedDB.databases();
-            await Promise.all((dbs || []).map(db => {
-              if (!db.name) return Promise.resolve();
-              return new Promise(res => {
-                const req = indexedDB.deleteDatabase(db.name);
-                req.onsuccess = req.onerror = req.onblocked = () => res();
-              });
-            }));
-          } catch (e) {}
-        }
-      } finally {
-        const url = new URL(location.href);
-        url.searchParams.set("v", Date.now().toString());
-        location.replace(url.toString());
-      }
-    }
-
-    (function () {
-      const btn = document.getElementById("btnHardReload");
-      if (!btn) return;
-      btn.addEventListener("click", () => {
-        const ok = confirm("Service Workerとキャッシュを消して最新版を取り直します。続行する？");
-        if (!ok) return;
-        hardReloadPWA();
-      });
-    })();
-  </script>
-
-  <!-- Splash制御：最低3秒は必ず見せる -->
+  <!-- ★診断（地図が起動しない時に result欄へエラー表示） -->
   <script>
     (function () {
-      const splash = document.getElementById("splash");
-      if (!splash) return;
-
-      const MIN_SHOW_MS = 3000;  // ★最低表示時間：3秒
-      const MAX_SHOW_MS = 8000;  // 保険
-      const FADE_MS = 420;       // CSSと合わせる
-
-      let hidden = false;
-
-      function hideSplash() {
-        if (hidden) return;
-        hidden = true;
-        splash.classList.add("hide");
-        setTimeout(() => splash.remove(), FADE_MS + 60);
-      }
-
-      setTimeout(hideSplash, MIN_SHOW_MS);
-
-      const started = performance.now();
-      window.addEventListener("load", () => {
-        const elapsed = performance.now() - started;
-        const wait = Math.max(0, MIN_SHOW_MS - elapsed);
-        setTimeout(hideSplash, wait);
-      });
-
-      setTimeout(hideSplash, MAX_SHOW_MS);
-    })();
-  </script>
-</body>
-</html>
+      function diag(msg){
+        const r = document.getElementById("result");
+        if (!r) return;
+        r.innerHTML =
+          '<div style="color:#ffb3b3;font-weight:900;line-height:1.6">' +
