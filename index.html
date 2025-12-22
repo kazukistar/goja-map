@@ -1,141 +1,38 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>ごじゃ地図</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
 
-  <!-- PWA（既存のまま） -->
+  <!-- Leaflet CSS（必須） -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  />
+
+  <!-- アプリCSS -->
+  <link rel="stylesheet" href="style.css" />
+
+  <!-- PWA -->
   <link rel="manifest" href="manifest.webmanifest">
-  <meta name="theme-color" content="#ffffff">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-title" content="ごじゃ地図">
-  <link rel="apple-touch-icon" href="icons/apple-touch-icon-180.png">
-
-  <!-- Leaflet -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
-  <link rel="stylesheet" href="style.css">
-
-  <!-- スプラッシュ用CSS（style.cssに触れずにここへ） -->
-  <style>
-    #splash {
-      position: fixed;
-      inset: 0;
-      background: #ffffff;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 9999;
-    }
-    #splash .box {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 14px;
-      padding: 18px;
-    }
-    #splash img {
-      width: 120px;
-      height: 120px;
-      border-radius: 24px;
-      object-fit: cover;
-      box-shadow: 0 10px 24px rgba(0,0,0,0.12);
-    }
-    #splash .title {
-      font-size: 22px;
-      font-weight: 800;
-      letter-spacing: 0.02em;
-    }
-    #splash .sub {
-      font-size: 13px;
-      opacity: 0.65;
-    }
-    #splash.hide {
-      animation: splashFade 300ms ease forwards;
-    }
-    @keyframes splashFade {
-      to { opacity: 0; visibility: hidden; }
-    }
-    @media (prefers-reduced-motion: reduce) {
-      #splash.hide { animation: none; opacity: 0; visibility: hidden; }
-    }
-  </style>
 </head>
 
 <body>
-  <!-- スプラッシュ（起動時に一瞬表示） -->
-  <div id="splash" aria-label="ごじゃ地図 起動画面">
-    <div class="box">
-      <img src="icons/icon-512.png" alt="ごじゃ地図 アイコン">
-      <div class="title">ごじゃ地図</div>
-      <div class="sub">起動中…</div>
-    </div>
-  </div>
+  <header>ごじゃ地図</header>
 
-  <h2>📍 ごじゃ地図</h2>
-  <p style="margin: 8px 10px; font-size: 14px;">
-    地図をタップして「居住地ピン」を登録 → 重心を計算して集合場所を決める。
-  </p>
-
+  <!-- 地図がホーム -->
   <div id="map"></div>
 
-  <button onclick="calculateCentroid()">重心を計算</button>
+  <!-- 下部ナビ（最低限） -->
+  <nav class="bottom">
+    <span>🗺 地図</span>
+  </nav>
 
-  <div style="margin:10px; font-size:14px; text-align:left; background:#f5f5f5; padding:10px; border-radius:8px;">
-    <b>📘 重心の考え方</b><br><br>
+  <!-- Leaflet JS（app.jsより先！） -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-    🔴 <b>重み付き重心（各自が別々に来る想定）</b><br>
-    人数をそのまま考慮します。人数が多い地点ほど集合場所に強く影響します。<br><br>
-
-    🟢 <b>重みなし重心（乗り合い前提）</b><br>
-    同じ地点の人は「1台の車で乗り合って来る」と考えます。人数は無視して地点ごとに同じ重みで計算します。<br><br>
-
-    ※ 人数の偏りが大きいほど、🔴と🟢はズレます。
-  </div>
-
-  <div id="result"></div>
-
+  <!-- アプリ本体 -->
   <script src="app.js"></script>
-
-  <!-- Service Worker登録（PWA） -->
-  <script>
-    if ("serviceWorker" in navigator) {
-      window.addEventListener("load", () => {
-        navigator.serviceWorker.register("./sw.js").catch(() => {});
-      });
-    }
-  </script>
-
-  <!-- ✅ スプラッシュ制御：load待ちしない。必ず消える版 -->
-  <script>
-    (function () {
-      const splash = document.getElementById("splash");
-      if (!splash) return;
-
-      let hidden = false;
-      function hideSplash() {
-        if (hidden) return;
-        hidden = true;
-        splash.classList.add("hide");
-        setTimeout(() => splash.remove(), 400);
-      }
-
-      // 重要：loadが来なくても必ず消す（最強）
-      setTimeout(hideSplash, 900);
-
-      // 早く読み込み終わった場合：最低0.7秒は見せてから消す
-      const started = performance.now();
-      window.addEventListener("load", () => {
-        const elapsed = performance.now() - started;
-        const wait = Math.max(0, 700 - elapsed);
-        setTimeout(hideSplash, wait);
-      });
-
-      // 保険：何があっても3秒で消す
-      setTimeout(hideSplash, 3000);
-    })();
-  </script>
 </body>
 </html>
