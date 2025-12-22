@@ -38,7 +38,7 @@
     <div class="appFlow">
       <div class="flowLine">地図タップで居住地ピン</div>
       <div class="flowArrow">↓</div>
-      <div class="flowLine">重心で集合場所</div>
+      <div class="flowLine">重心計算で集合場所割り出し</div>
       <div class="flowArrow">↓</div>
       <div class="flowLine">重心付近の観光地は地図の下に表示</div>
     </div>
@@ -70,11 +70,11 @@
     <details class="help" open>
       <summary>重心の考え方</summary>
       <ul>
-        <li>🔴 <b>重み付き重心</b>：人数を考慮（各自バラバラに来る想定）。人数が多い地点ほど集合場所に強く影響。</li>
-        <li>🟢 <b>重みなし重心</b>：地点数で平均（同じ地点は1台で乗り合い想定）。人数は無視して「地点の数」で計算。</li>
+        <li>🔴 <b>重み付き重心</b>：人数を考慮（各自バラバラに来る想定）人数が多い地点ほど集合場所に強く影響</li>
+        <li>🟢 <b>重みなし重心</b>：地点数で平均（同じ地点は1台で乗り合い想定）人数は無視して「地点の数」で計算</li>
       </ul>
       <div class="note">
-        ※ おすすめは OpenStreetMap（Overpass）から取得するので、場所によって少ない/出ないことがある。<br/>
+        ※ おすすめは OpenStreetMap（Overpass）から取得するので、場所によって少ない/出ないことがある<br/>
         ※ ピン削除はピン一覧からも可能
       </div>
     </details>
