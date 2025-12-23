@@ -445,6 +445,11 @@
     `;
   }
 
+  // ================================
+  // 🍜 ラーメン検索：Overpassクエリに追加
+  // - cuisine=ramen を優先
+  // - nameに「ラーメン/らーめん/ramen」系が入ってるのも拾う
+  // ================================
   function buildOverpassQuery(lat, lon, radiusM) {
     return `
 [out:json][timeout:25];
@@ -465,8 +470,14 @@
   nwr(around:${radiusM},${lat},${lon})["landuse"="winter_sports"];
   relation(around:${radiusM},${lat},${lon})["site"="piste"];
   nwr(around:${radiusM},${lat},${lon})["piste:type"];
+
+  /* 🍜 ラーメン */
+  nwr(around:${radiusM},${lat},${lon})["amenity"="restaurant"]["cuisine"~"ramen",i];
+  nwr(around:${radiusM},${lat},${lon})["amenity"="fast_food"]["cuisine"~"ramen",i];
+  nwr(around:${radiusM},${lat},${lon})["amenity"="restaurant"]["name"~"ラーメン|らーめん|RAMEN|Ramen|ramen",i];
+  nwr(around:${radiusM},${lat},${lon})["amenity"="fast_food"]["name"~"ラーメン|らーめん|RAMEN|Ramen|ramen",i];
 );
-out tags center 250;
+out tags center 350;
 `;
   }
 
@@ -497,7 +508,18 @@ out tags center 250;
     return null;
   }
 
+  function looksLikeRamen(tags = {}) {
+    const cuisine = (tags.cuisine || "").toString();
+    const name = (tags.name || "").toString();
+    if (/ramen/i.test(cuisine)) return true;
+    if (/ラーメン|らーめん|RAMEN|Ramen|ramen/i.test(name)) return true;
+    return false;
+  }
+
   function categorizeOsm(tags = {}) {
+    // 🍜 ラーメン（先に判定：restaurant系でも他カテゴリに吸われないように）
+    if (looksLikeRamen(tags)) return "🍜 ラーメン";
+
     if (
       tags["amenity"] === "public_bath" ||
       tags["bath:type"] === "onsen" ||
@@ -543,10 +565,13 @@ out tags center 250;
 
       const name = el.tags && el.tags.name ? el.tags.name : "(名前なし)";
       const dist = haversineKm(lat, lon, ll.lat, ll.lon);
+
       items.push({ cat, name, lat: ll.lat, lon: ll.lon, distKm: dist });
     }
 
-    const order = ["♨ 温泉", "🏯 歴史的観光地", "🎡 レジャー施設", "🎿 スキー場"];
+    // 表示順に 🍜 ラーメン 追加
+    const order = ["♨ 温泉", "🍜 ラーメン", "🏯 歴史的観光地", "🎡 レジャー施設", "🎿 スキー場"];
+
     const byCat = new Map();
     for (const it of items) {
       if (!byCat.has(it.cat)) byCat.set(it.cat, []);
@@ -618,7 +643,7 @@ out tags center 250;
         return html;
       } catch (e) {
         rec.status = "error";
-        rec.errorMsg = String(e && e.message ? e.message : e);
+        rec.errorMsg = String(e && e.message ? e.reason : e.message || e);
         throw e;
       }
     })();
